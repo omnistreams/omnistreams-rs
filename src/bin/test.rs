@@ -1,9 +1,7 @@
-use omnistreams::{WriteAdapter};
+use omnistreams::{Consumer, WriteAdapter};
+use tokio::io;
 use tokio::prelude::*;
 
-
-trait Consumer {
-}
 
 trait Producer {
 }
@@ -21,22 +19,28 @@ impl DummyProducer {
 impl Producer for DummyProducer {
 }
 
-struct Pipe<T> {
-    consumer: Option<T>,
+struct Pipe<T> 
+    where T: Consumer + Future<Item=(), Error=io::Error> + Send + 'static,
+{
+    consumer_future: T,
 }
 
-impl<T> Pipe<T> {
+impl<T> Pipe<T>
+    where T: Consumer + Future<Item=(), Error=io::Error> + Send + 'static,
+{
     fn new(producer: impl Producer, consumer_future: T) -> Pipe<T> {
+
+        let consumer_message_tx = consumer_future.message_tx();
+
         Pipe {
-            consumer: None,
+            consumer_future,
         }
     }
-
-    fn pipe(consumer: T) {
-    }
 }
 
-impl<T> Future for Pipe<T> {
+impl<T> Future for Pipe<T>
+    where T: Consumer + Future<Item=(), Error=io::Error> + Send + 'static,
+{
     type Item = ();
     type Error = i32;
 
@@ -50,11 +54,15 @@ impl<T> Future for Pipe<T> {
 fn main() {
 
     let file_writer = tokio::fs::File::create("foo.txt");
-    let consumer = WriteAdapter::new(file_writer).map_err(|_| {});
+    let consumer = WriteAdapter::new(file_writer);
+    println!("{:?}", consumer);
+    //let consumer = consumer.map_err(|_| {});
 
     let producer = DummyProducer::new();
 
-    let pipe = Pipe::new(producer, consumer).map_err(|_| {});
+    let pipe = Pipe::new(producer, consumer).map_err(|e| {
+        eprintln!("{:?}", e);
+    });
 
     tokio::run(pipe);
 }
