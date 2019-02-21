@@ -77,7 +77,7 @@ fn main() {
         let data = vec![
             vec![65, 66, 67],
             vec![68, 69, 70],
-            vec![71, 72, 73],
+            vec![71, 72, 73, 78],
         ];
 
         let event_stream = consumer.event_stream().expect("no event stream");

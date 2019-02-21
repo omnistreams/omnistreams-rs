@@ -2,6 +2,7 @@ use tokio::io;
 //use tokio::net::TcpListener;
 use tokio::prelude::*;
 use futures::sync::mpsc;
+use futures::try_ready;
 
 
 type MessageRx = mpsc::UnboundedReceiver<ConsumerMessage<Vec<u8>>>;
@@ -52,6 +53,7 @@ struct InnerTask<T, U>
     state: WriteAdapterState<T, U>,
     message_rx: MessageRx,
     event_tx: EventTx,
+    demand: usize,
 }
 
 impl<T, U> InnerTask<T, U>
@@ -60,12 +62,15 @@ impl<T, U> InnerTask<T, U>
 {
     fn new(writer_future: T, message_rx: MessageRx, event_tx: EventTx) -> InnerTask<T, U> {
 
-        (&event_tx).send(ConsumerEvent::Request(1));
+        let initial_demand = 1;
+
+        (&event_tx).send(ConsumerEvent::Request(initial_demand));
 
         InnerTask {
             state: WriteAdapterState::WaitingForWriter(writer_future),
             message_rx,
             event_tx,
+            demand: initial_demand,
         }
     }
 }
@@ -79,29 +84,66 @@ impl<T, U> Future for InnerTask<T, U>
 
     fn poll(&mut self) -> Poll<(), io::Error> {
 
-        // process any messages from upstream
-        loop {
-            match self.message_rx.poll().unwrap() {
-                Async::Ready(Some(ConsumerMessage::Write(data))) => {
-                    println!("write {:?}", data);
-                    let tx = &self.event_tx;
-                    tx.send(ConsumerEvent::Request(1));
-                    task::current().notify();
-                },
-                Async::Ready(Some(ConsumerMessage::End)) => {
-                    println!("end");
-                    return Ok(Async::Ready(()));
-                },
-                Async::NotReady => {
-                    break;
-                },
-                _ => {
-                    break;
-                }
-            }
-        }
+        match self.state {
+            WriteAdapterState::Writing(ref mut writer) => {
+                println!("writing");
 
-        Ok(Async::NotReady)
+                // process any messages from upstream
+                loop {
+                    match self.message_rx.poll().unwrap() {
+                        Async::Ready(Some(ConsumerMessage::Write(data))) => {
+                            if self.demand == 0 {
+                                panic!("WriteAdapter: Attempt to write more than requested");
+                            }
+
+                            println!("write {:?}", data);
+                            match writer.poll_write(&data) {
+                                Ok(Async::Ready(n)) => {
+                                    if n != data.len() {
+                                        panic!("WriteAdapter: Failed to write all data");
+                                    }
+                                    (&self.event_tx).send(ConsumerEvent::Request(1));
+                                },
+                                Ok(Async::NotReady) => {
+                                    println!("writer not ready");
+                                },
+                                Err(e) => {
+                                },
+                            }
+                        },
+                        Async::Ready(Some(ConsumerMessage::End)) => {
+                            println!("end");
+                            return Ok(Async::Ready(()));
+                        },
+                        Async::NotReady => {
+                            break;
+                        },
+                        _ => {
+                            panic!("WriteAdapter: Unknown message");
+                            break;
+                        }
+                    }
+                }
+
+                Ok(Async::NotReady)
+            },
+            WriteAdapterState::WaitingForWriter(ref mut fut) => {
+                println!("waiting");
+                return match fut.poll() {
+                    Ok(Async::Ready(writer)) => {
+                        self.state = WriteAdapterState::Writing(writer);
+                        task::current().notify();
+                        Ok(Async::NotReady)
+                    },
+                    Ok(Async::NotReady) => {
+                        Ok(Async::NotReady)
+                    },
+                    Err(e) => {
+                        Err(e)
+                    }
+                }
+            },
+        }
     }
 }
 
