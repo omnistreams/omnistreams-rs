@@ -15,7 +15,7 @@ pub trait Consumer {
     fn write(&mut self, data: Vec<u8>);
     fn end(&mut self);
     fn next_event(&mut self) -> Option<ConsumerEvent>;
-    //fn event_stream(&mut self) -> Stream<Item=ConsumerEvent, Error=io::Error>;
+    fn event_stream(&mut self) -> Option<EventRx>;
 }
 
 #[derive(Debug)]
@@ -33,7 +33,7 @@ pub enum ConsumerEvent {
 pub struct WriteAdapter
 {
     message_tx: mpsc::UnboundedSender<ConsumerMessage<Vec<u8>>>,
-    //event_rx: EventRx,
+    event_rx: Option<EventRx>,
 }
 
 #[derive(Debug)]
@@ -107,7 +107,7 @@ impl<T, U> Future for InnerTask<T, U>
 
 impl WriteAdapter
 {
-    pub fn new<T, U>(writer_future: T) -> (WriteAdapter, EventRx)
+    pub fn new<T, U>(writer_future: T) -> WriteAdapter
         where T: Future<Item=U, Error=io::Error> + Send + 'static,
               U: AsyncWrite + Send + 'static,
     {
@@ -117,18 +117,11 @@ impl WriteAdapter
         let inner_task = InnerTask::new(writer_future, message_rx, event_tx);
         tokio::spawn(inner_task.map_err(|_| {}));
 
-        (WriteAdapter {
+        WriteAdapter {
             message_tx,
-            //event_rx,
-        }, event_rx)
+            event_rx: Some(event_rx),
+        }
     }
-
-    //pub fn event_stream(&mut self) -> impl Stream<Item=ConsumerEvent, Error=io::Error>
-    //{
-    //    //futures::stream::ok(ConsumerEvent::Request(1))
-    //    self.event_rx
-    //}
-
 }
 
 impl Consumer for WriteAdapter {
@@ -157,6 +150,9 @@ impl Consumer for WriteAdapter {
         None
     }
 
+    fn event_stream(&mut self) -> Option<EventRx> {
+        Option::take(&mut self.event_rx)
+    }
 }
 
 //impl<T, U> Future for WriteAdapter<T, U>

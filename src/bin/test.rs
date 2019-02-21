@@ -70,7 +70,7 @@ fn main() {
     tokio::run(lazy(|| {
 
         let file_writer = tokio::fs::File::create("foo.txt");
-        let (mut consumer, event_stream) = WriteAdapter::new(file_writer);
+        let mut consumer = WriteAdapter::new(file_writer);
 
         let mut count = 0;
 
@@ -79,6 +79,8 @@ fn main() {
             vec![68, 69, 70],
             vec![71, 72, 73],
         ];
+
+        let event_stream = consumer.event_stream().expect("no event stream");
 
         tokio::spawn(event_stream.for_each(move |event| {
             if count < data.len() {
