@@ -1,23 +1,16 @@
 use tokio::io;
-//use tokio::net::TcpListener;
 use tokio::prelude::*;
 use futures::sync::mpsc;
-use futures::try_ready;
 use super::{
-    Consumer,
-    ConsumerMessage,
-    ConsumerEvent,
-    EventRx,
-    EventTx,
-    MessageRx,
-    MessageTx,
+    Consumer, ConsumerMessage, ConsumerEvent, EventRx, EventTx, MessageRx,
+    MessageTx
 };
 
 
 #[derive(Debug)]
 pub struct WriteAdapter
 {
-    message_tx: mpsc::UnboundedSender<ConsumerMessage<Vec<u8>>>,
+    message_tx: MessageTx,
     event_rx: Option<EventRx>,
 }
 
@@ -48,7 +41,7 @@ impl<T, U> InnerTask<T, U>
 
         let initial_demand = 1;
 
-        (&event_tx).send(ConsumerEvent::Request(initial_demand));
+        (&event_tx).unbounded_send(ConsumerEvent::Request(initial_demand)).unwrap();
 
         InnerTask {
             state: WriteAdapterState::WaitingForWriter(writer_future),
@@ -86,12 +79,12 @@ impl<T, U> Future for InnerTask<T, U>
                                     if n != data.len() {
                                         panic!("WriteAdapter: Failed to write all data");
                                     }
-                                    (&self.event_tx).send(ConsumerEvent::Request(1));
+                                    (&self.event_tx).unbounded_send(ConsumerEvent::Request(1)).unwrap();
                                 },
                                 Ok(Async::NotReady) => {
                                     println!("writer not ready");
                                 },
-                                Err(e) => {
+                                Err(_e) => {
                                 },
                             }
                         },
@@ -104,7 +97,6 @@ impl<T, U> Future for InnerTask<T, U>
                         },
                         _ => {
                             panic!("WriteAdapter: Unknown message");
-                            break;
                         }
                     }
                 }
@@ -153,27 +145,12 @@ impl WriteAdapter
 impl Consumer for WriteAdapter {
     fn write(&mut self, data: Vec<u8>) {
         let tx = &self.message_tx;
-        tx.send(ConsumerMessage::Write(data));
+        tx.unbounded_send(ConsumerMessage::Write(data)).unwrap();
     }
 
     fn end(&mut self) {
         let tx = &self.message_tx;
-        tx.send(ConsumerMessage::End);
-    }
-
-    fn next_event(&mut self) -> Option<ConsumerEvent> {
-        //match self.event_rx.poll().unwrap() {
-        //    Async::Ready(Some(event)) => {
-        //        Some(event)
-        //    },
-        //    Async::NotReady => {
-        //        None
-        //    },
-        //    _ => {
-        //        None
-        //    }
-        //}
-        None
+        tx.unbounded_send(ConsumerMessage::End).unwrap();
     }
 
     fn event_stream(&mut self) -> Option<EventRx> {
