@@ -56,7 +56,8 @@ impl Producer<Item> for ReadAdapter {
         match (&self.message_tx).unbounded_send(ProducerMessage::Request(num_items)) {
             Ok(_) => {
             },
-            Err(e) => {
+            Err(_e) => {
+                // TODO: properly handle
                 //eprintln!("{:?}", e);
             }
         }
