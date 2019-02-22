@@ -63,7 +63,6 @@ impl<T, U> Future for InnerTask<T, U>
 
         match self.state {
             WriteAdapterState::Writing(ref mut writer) => {
-                println!("writing");
 
                 // process any messages from upstream
                 loop {
@@ -73,7 +72,6 @@ impl<T, U> Future for InnerTask<T, U>
                                 panic!("WriteAdapter: Attempt to write more than requested");
                             }
 
-                            println!("write {:?}", data);
                             match writer.poll_write(&data) {
                                 Ok(Async::Ready(n)) => {
                                     if n != data.len() {
@@ -92,11 +90,15 @@ impl<T, U> Future for InnerTask<T, U>
                             println!("end");
                             return Ok(Async::Ready(()));
                         },
+                        Async::Ready(None) => {
+                            println!("ready none");
+                            return Ok(Async::Ready(()));
+                        },
                         Async::NotReady => {
                             break;
                         },
-                        _ => {
-                            panic!("WriteAdapter: Unknown message");
+                        message => {
+                            panic!("WriteAdapter: Unknown message: {:?}", message);
                         }
                     }
                 }

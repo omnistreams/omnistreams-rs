@@ -101,8 +101,7 @@ impl<T, U> Future for InnerTask<T, U>
                             self.demand += num_items;
                         },
                         Async::Ready(None) => {
-                            println!("ready none");
-                            break;
+                            return Ok(Async::Ready(()));
                         },
                         Async::NotReady => {
                             break;
