@@ -123,8 +123,7 @@ impl<T, U> Future for InnerTask<T, U>
     }
 }
 
-impl WriteAdapter
-{
+impl WriteAdapter {
     pub fn new<T, U>(writer_future: T) -> WriteAdapter
         where T: Future<Item=U, Error=io::Error> + Send + 'static,
               U: AsyncWrite + Send + 'static,
