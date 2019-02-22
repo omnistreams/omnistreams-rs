@@ -80,33 +80,26 @@ impl<T, U> Future for InnerTask<T, U>
                                     (&self.event_tx).unbounded_send(ConsumerEvent::Request(1)).unwrap();
                                 },
                                 Ok(Async::NotReady) => {
-                                    println!("writer not ready");
                                 },
                                 Err(_e) => {
                                 },
                             }
                         },
                         Async::Ready(Some(ConsumerMessage::End)) => {
-                            println!("end");
                             return Ok(Async::Ready(()));
                         },
                         Async::Ready(None) => {
-                            println!("ready none");
                             return Ok(Async::Ready(()));
                         },
                         Async::NotReady => {
                             break;
                         },
-                        message => {
-                            panic!("WriteAdapter: Unknown message: {:?}", message);
-                        }
                     }
                 }
 
                 Ok(Async::NotReady)
             },
             WriteAdapterState::WaitingForWriter(ref mut fut) => {
-                println!("waiting");
                 return match fut.poll() {
                     Ok(Async::Ready(writer)) => {
                         self.state = WriteAdapterState::Writing(writer);

@@ -4,7 +4,6 @@ use omnistreams::{
 };
 use tokio::prelude::*;
 use futures::future::lazy;
-use std::str;
 
 
 fn main() {
@@ -22,7 +21,6 @@ fn main() {
         tokio::spawn(producer_events.for_each(move |event| {
             match event {
                 ProducerEvent::Data(data) => {
-                    println!("{:?}", str::from_utf8(&data).unwrap());
                     consumer.write(data);
                 },
                 ProducerEvent::End => {

@@ -53,8 +53,13 @@ impl ReadAdapter {
 
 impl Producer<Item> for ReadAdapter {
     fn request(&mut self, num_items: usize) {
-        println!("request called");
-        (&self.message_tx).send(ProducerMessage::Request(num_items));
+        match (&self.message_tx).unbounded_send(ProducerMessage::Request(num_items)) {
+            Ok(_) => {
+            },
+            Err(e) => {
+                //eprintln!("{:?}", e);
+            }
+        }
     }
 
     fn event_stream(&mut self) -> Option<ProducerEventRx<Item>> {
@@ -67,10 +72,6 @@ impl<T, U> InnerTask<T, U>
           U: AsyncRead,
 {
     fn new(reader_future: T, message_rx: ProducerMessageRx, event_tx: ProducerEventTx<Item>) -> InnerTask<T, U> {
-
-        //let initial_demand = 1;
-
-        //(&event_tx).unbounded_send(ProducerEvent::Request(initial_demand)).unwrap();
 
         InnerTask {
             state: ReadAdapterState::WaitingForReader(reader_future),
@@ -92,12 +93,10 @@ impl<T, U> Future for InnerTask<T, U>
 
         match self.state {
             ReadAdapterState::Reading(ref mut reader) => {
-                println!("reading");
 
                 loop {
                     match self.message_rx.poll().unwrap() {
                         Async::Ready(Some(ProducerMessage::Request(num_items))) => {
-                            println!("request made: {}", num_items);
                             self.demand += num_items;
                         },
                         Async::Ready(None) => {
@@ -106,9 +105,6 @@ impl<T, U> Future for InnerTask<T, U>
                         Async::NotReady => {
                             break;
                         },
-                        m => {
-                            panic!("ReadAdapter: Unknown message: {:?}", m);
-                        }
                     }
                 }
 
@@ -123,7 +119,7 @@ impl<T, U> Future for InnerTask<T, U>
                             (&self.event_tx).unbounded_send(ProducerEvent::Data(buf[0..n].to_vec())).unwrap();
 
                             if n != CHUNK_SIZE {
-                                eprintln!("wrong chunk size: {}", n);
+                                //eprintln!("wrong chunk size: {}", n);
                             }
 
                             if n == 0 {
@@ -140,7 +136,6 @@ impl<T, U> Future for InnerTask<T, U>
                 }
             },
             ReadAdapterState::WaitingForReader(ref mut fut) => {
-                println!("waiting for reader");
                 return match fut.poll() {
                     Ok(Async::Ready(reader)) => {
                         self.state = ReadAdapterState::Reading(reader);
