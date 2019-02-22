@@ -5,15 +5,15 @@ mod write_adapter;
 pub use self::write_adapter::WriteAdapter;
 
 
-type MessageRx = mpsc::UnboundedReceiver<ConsumerMessage<Vec<u8>>>;
-type MessageTx = mpsc::UnboundedSender<ConsumerMessage<Vec<u8>>>;
+type MessageRx<T> = mpsc::UnboundedReceiver<ConsumerMessage<T>>;
+type MessageTx<T> = mpsc::UnboundedSender<ConsumerMessage<T>>;
 
 type EventRx = mpsc::UnboundedReceiver<ConsumerEvent>;
 type EventTx = mpsc::UnboundedSender<ConsumerEvent>;
 
 
-pub trait Consumer {
-    fn write(&mut self, data: Vec<u8>);
+pub trait Consumer<T> {
+    fn write(&mut self, data: T);
     fn end(&mut self);
     fn event_stream(&mut self) -> Option<EventRx>;
 }

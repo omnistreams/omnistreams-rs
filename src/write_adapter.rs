@@ -10,7 +10,7 @@ use super::{
 #[derive(Debug)]
 pub struct WriteAdapter
 {
-    message_tx: MessageTx,
+    message_tx: MessageTx<Vec<u8>>,
     event_rx: Option<EventRx>,
 }
 
@@ -28,7 +28,7 @@ struct InnerTask<T, U>
           U: AsyncWrite,
 {
     state: WriteAdapterState<T, U>,
-    message_rx: MessageRx,
+    message_rx: MessageRx<Vec<u8>>,
     event_tx: EventTx,
     demand: usize,
 }
@@ -37,7 +37,7 @@ impl<T, U> InnerTask<T, U>
     where T: Future<Item=U, Error=io::Error>,
           U: AsyncWrite,
 {
-    fn new(writer_future: T, message_rx: MessageRx, event_tx: EventTx) -> InnerTask<T, U> {
+    fn new(writer_future: T, message_rx: MessageRx<Vec<u8>>, event_tx: EventTx) -> InnerTask<T, U> {
 
         let initial_demand = 1;
 
@@ -142,7 +142,7 @@ impl WriteAdapter
     }
 }
 
-impl Consumer for WriteAdapter {
+impl Consumer<Vec<u8>> for WriteAdapter {
     fn write(&mut self, data: Vec<u8>) {
         let tx = &self.message_tx;
         tx.unbounded_send(ConsumerMessage::Write(data)).unwrap();
