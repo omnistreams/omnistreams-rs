@@ -14,6 +14,10 @@ type EventRx = mpsc::UnboundedReceiver<ConsumerEvent>;
 type EventTx = mpsc::UnboundedSender<ConsumerEvent>;
 
 type ProducerEventRx<T> = mpsc::UnboundedReceiver<ProducerEvent<T>>;
+type ProducerEventTx<T> = mpsc::UnboundedSender<ProducerEvent<T>>;
+
+type ProducerMessageRx = mpsc::UnboundedReceiver<ProducerMessage>;
+type ProducerMessageTx = mpsc::UnboundedSender<ProducerMessage>;
 
 
 pub trait Consumer<T> {
@@ -31,6 +35,11 @@ pub trait Producer<T> {
 pub enum ConsumerMessage<T> {
     Write(T),
     End,
+}
+
+#[derive(Debug)]
+pub enum ProducerMessage {
+    Request(usize),
 }
 
 #[derive(Debug)]

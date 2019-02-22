@@ -4,6 +4,7 @@ use omnistreams::{
 };
 use tokio::prelude::*;
 use futures::future::lazy;
+use std::str;
 
 
 fn main() {
@@ -16,12 +17,15 @@ fn main() {
         let file_writer = tokio::fs::File::create("out.txt");
         let mut consumer = WriteAdapter::new(file_writer);
 
+        producer.request(1);
+
         let producer_events = producer.event_stream().unwrap();
-        tokio::spawn(producer_events.for_each(|event| {
+        tokio::spawn(producer_events.for_each(move |event| {
             match event {
                 ProducerEvent::Data(data) => {
                     println!("producer data");
-                    //producer.request(1);
+                    println!("{:?}", str::from_utf8(&data).unwrap());
+                    producer.request(1);
                 },
                 ProducerEvent::End => {
                     println!("producer ended");
@@ -32,8 +36,6 @@ fn main() {
         .map_err(|e| {
             println!("error {:?}", e);
         }));
-
-        //producer.request(1);
 
         let mut count = 0;
 
