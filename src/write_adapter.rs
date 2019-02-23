@@ -137,12 +137,12 @@ impl WriteAdapter {
 }
 
 impl Consumer<Vec<u8>> for WriteAdapter {
-    fn write(&mut self, data: Vec<u8>) {
+    fn write(&self, data: Vec<u8>) {
         let tx = &self.message_tx;
         tx.unbounded_send(ConsumerMessage::Write(data)).unwrap();
     }
 
-    fn end(&mut self) {
+    fn end(&self) {
         let tx = &self.message_tx;
         tx.unbounded_send(ConsumerMessage::End).unwrap();
     }

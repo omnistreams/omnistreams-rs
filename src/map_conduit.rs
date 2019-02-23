@@ -45,10 +45,10 @@ impl<F, A, B> MapConduit<F, A, B>
 impl<F, A, B> Consumer<A> for MapConduit<F, A, B>
     where F: Fn(A) -> B,
 {
-    fn write(&mut self, data: A) {
+    fn write(&self, data: A) {
     }
 
-    fn end(&mut self) {
+    fn end(&self) {
     }
 
     fn event_stream(&mut self) -> Option<ConsumerEventRx> {

@@ -23,8 +23,8 @@ type ProducerMessageTx = mpsc::UnboundedSender<ProducerMessage>;
 
 
 pub trait Consumer<T> {
-    fn write(&mut self, data: T);
-    fn end(&mut self);
+    fn write(&self, data: T);
+    fn end(&self);
     fn event_stream(&mut self) -> Option<ConsumerEventRx>;
 }
 
