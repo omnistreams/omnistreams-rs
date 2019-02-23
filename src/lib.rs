@@ -38,9 +38,23 @@ pub trait Producer<T> {
     {
         pipe(self, consumer);
     }
+
+    fn pipe_conduit<C, U, V>(self, conduit: C) -> C::ConcreteProducer 
+        where Self: Sized + Send + 'static,
+              C: Conduit<T, U> + Sized + Send + 'static,
+              //B: Send + 'static,
+    {
+        let (consumer, producer) = conduit.split();
+        producer
+    }
 }
 
 pub trait Conduit<A, B> : Consumer<A> + Producer<B> {
+    
+    type ConcreteConsumer;
+    type ConcreteProducer;
+
+    fn split(self) -> (Self::ConcreteConsumer, Self::ConcreteProducer);
 }
 
 #[derive(Debug)]
@@ -54,7 +68,7 @@ pub enum ProducerMessage {
     Request(usize),
 }
 
-#[derive(Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum ConsumerEvent {
     Request(usize),
 }
