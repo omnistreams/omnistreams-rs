@@ -1,4 +1,4 @@
-use omnistreams::{Producer, ReadAdapter, WriteAdapter, pipe};
+use omnistreams::{Producer, ReadAdapter, WriteAdapter};
 use futures::future::lazy;
 
 

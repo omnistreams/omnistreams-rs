@@ -2,16 +2,16 @@ use tokio::io;
 use tokio::prelude::*;
 use futures::sync::mpsc;
 use super::{
-    Consumer, ConsumerMessage, ConsumerEvent, EventRx, EventTx, MessageRx,
-    MessageTx
+    Consumer, ConsumerMessage, ConsumerEvent, ConsumerEventRx, ConsumerEventTx, ConsumerMessageRx,
+    ConsumerMessageTx
 };
 
 
 #[derive(Debug)]
 pub struct WriteAdapter
 {
-    message_tx: MessageTx<Vec<u8>>,
-    event_rx: Option<EventRx>,
+    message_tx: ConsumerMessageTx<Vec<u8>>,
+    event_rx: Option<ConsumerEventRx>,
 }
 
 #[derive(Debug)]
@@ -28,8 +28,8 @@ struct InnerTask<T, U>
           U: AsyncWrite,
 {
     state: WriteAdapterState<T, U>,
-    message_rx: MessageRx<Vec<u8>>,
-    event_tx: EventTx,
+    message_rx: ConsumerMessageRx<Vec<u8>>,
+    event_tx: ConsumerEventTx,
     demand: usize,
 }
 
@@ -37,7 +37,7 @@ impl<T, U> InnerTask<T, U>
     where T: Future<Item=U, Error=io::Error>,
           U: AsyncWrite,
 {
-    fn new(writer_future: T, message_rx: MessageRx<Vec<u8>>, event_tx: EventTx) -> InnerTask<T, U> {
+    fn new(writer_future: T, message_rx: ConsumerMessageRx<Vec<u8>>, event_tx: ConsumerEventTx) -> InnerTask<T, U> {
 
         let initial_demand = 1;
 
@@ -147,7 +147,7 @@ impl Consumer<Vec<u8>> for WriteAdapter {
         tx.unbounded_send(ConsumerMessage::End).unwrap();
     }
 
-    fn event_stream(&mut self) -> Option<EventRx> {
+    fn event_stream(&mut self) -> Option<ConsumerEventRx> {
         Option::take(&mut self.event_rx)
     }
 }

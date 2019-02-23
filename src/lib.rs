@@ -3,16 +3,17 @@ use tokio::prelude::*;
 
 mod read_adapter;
 mod write_adapter;
+mod map_conduit;
 
 pub use self::read_adapter::ReadAdapter;
 pub use self::write_adapter::WriteAdapter;
 
 
-type MessageRx<T> = mpsc::UnboundedReceiver<ConsumerMessage<T>>;
-type MessageTx<T> = mpsc::UnboundedSender<ConsumerMessage<T>>;
+type ConsumerMessageRx<T> = mpsc::UnboundedReceiver<ConsumerMessage<T>>;
+type ConsumerMessageTx<T> = mpsc::UnboundedSender<ConsumerMessage<T>>;
 
-type EventRx = mpsc::UnboundedReceiver<ConsumerEvent>;
-type EventTx = mpsc::UnboundedSender<ConsumerEvent>;
+type ConsumerEventRx = mpsc::UnboundedReceiver<ConsumerEvent>;
+type ConsumerEventTx = mpsc::UnboundedSender<ConsumerEvent>;
 
 type ProducerEventRx<T> = mpsc::UnboundedReceiver<ProducerEvent<T>>;
 type ProducerEventTx<T> = mpsc::UnboundedSender<ProducerEvent<T>>;
@@ -24,7 +25,7 @@ type ProducerMessageTx = mpsc::UnboundedSender<ProducerMessage>;
 pub trait Consumer<T> {
     fn write(&mut self, data: T);
     fn end(&mut self);
-    fn event_stream(&mut self) -> Option<EventRx>;
+    fn event_stream(&mut self) -> Option<ConsumerEventRx>;
 }
 
 pub trait Producer<T> {
@@ -37,6 +38,9 @@ pub trait Producer<T> {
     {
         pipe(self, consumer);
     }
+}
+
+pub trait Conduit<A, B> : Consumer<A> + Producer<B> {
 }
 
 #[derive(Debug)]
