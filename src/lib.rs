@@ -4,9 +4,11 @@ use tokio::prelude::*;
 mod read_adapter;
 mod write_adapter;
 mod map_conduit;
+mod range_producer;
 
 pub use self::read_adapter::ReadAdapter;
 pub use self::write_adapter::WriteAdapter;
+pub use self::range_producer::RangeProducer;
 
 
 type ConsumerMessageRx<T> = mpsc::UnboundedReceiver<ConsumerMessage<T>>;
