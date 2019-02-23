@@ -1,4 +1,5 @@
 use futures::sync::mpsc;
+use tokio::prelude::*;
 
 mod read_adapter;
 mod write_adapter;
@@ -50,4 +51,41 @@ pub enum ConsumerEvent {
 pub enum ProducerEvent<T> {
     Data(T),
     End,
+}
+
+pub fn pipe<T, P, C>(mut producer: P, mut consumer: C)
+    where T: Send + 'static,
+          P: Producer<T> + Send + 'static,
+          C: Consumer<T> + Send + 'static
+{
+    let producer_events = producer.event_stream().unwrap();
+    let consumer_events = consumer.event_stream().expect("no event stream");
+
+    tokio::spawn(producer_events.for_each(move |event| {
+        match event {
+            ProducerEvent::Data(data) => {
+                consumer.write(data);
+            },
+            ProducerEvent::End => {
+                println!("producer ended");
+            },
+        }
+        Ok(())
+    })
+    .map_err(|e| {
+        println!("error {:?}", e);
+    }));
+
+    tokio::spawn(consumer_events.for_each(move |event| {
+        match event {
+            ConsumerEvent::Request(num_items) => {
+                producer.request(num_items);
+            },
+        }
+        
+        Ok(())
+    })
+    .map_err(|e| {
+        println!("error {:?}", e);
+    }));
 }

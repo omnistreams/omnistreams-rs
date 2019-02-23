@@ -1,8 +1,4 @@
-use omnistreams::{
-    Producer, ProducerEvent, Consumer, ConsumerEvent, ReadAdapter,
-    WriteAdapter
-};
-use tokio::prelude::*;
+use omnistreams::{ReadAdapter, WriteAdapter, pipe};
 use futures::future::lazy;
 
 
@@ -11,40 +7,12 @@ fn main() {
     tokio::run(lazy(|| {
 
         let file_reader = tokio::fs::File::open("in.txt");
-        let mut producer = ReadAdapter::new(file_reader);
-        let producer_events = producer.event_stream().unwrap();
+        let producer = ReadAdapter::new(file_reader);
 
         let file_writer = tokio::fs::File::create("out.txt");
-        let mut consumer = WriteAdapter::new(file_writer);
-        let consumer_events = consumer.event_stream().expect("no event stream");
+        let consumer = WriteAdapter::new(file_writer);
 
-        tokio::spawn(producer_events.for_each(move |event| {
-            match event {
-                ProducerEvent::Data(data) => {
-                    consumer.write(data);
-                },
-                ProducerEvent::End => {
-                    println!("producer ended");
-                },
-            }
-            Ok(())
-        })
-        .map_err(|e| {
-            println!("error {:?}", e);
-        }));
-
-        tokio::spawn(consumer_events.for_each(move |event| {
-            match event {
-                ConsumerEvent::Request(num_items) => {
-                    producer.request(num_items);
-                },
-            }
-            
-            Ok(())
-        })
-        .map_err(|e| {
-            println!("error {:?}", e);
-        }));
+        pipe(producer, consumer);
 
         Ok(())
     }));
