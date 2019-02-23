@@ -30,6 +30,13 @@ pub trait Consumer<T> {
 pub trait Producer<T> {
     fn request(&mut self, num_items: usize);
     fn event_stream(&mut self) -> Option<ProducerEventRx<T>>;
+    fn pipe<C>(self, consumer: C)
+        where Self: Sized + Send + 'static,
+              C: Consumer<T> + Sized + Send + 'static,
+              T: Send + 'static,
+    {
+        pipe(self, consumer);
+    }
 }
 
 #[derive(Debug)]
@@ -48,6 +55,7 @@ pub enum ConsumerEvent {
     Request(usize),
 }
 
+#[derive(Debug)]
 pub enum ProducerEvent<T> {
     Data(T),
     End,

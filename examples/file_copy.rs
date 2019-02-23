@@ -1,4 +1,4 @@
-use omnistreams::{ReadAdapter, WriteAdapter, pipe};
+use omnistreams::{Producer, ReadAdapter, WriteAdapter, pipe};
 use futures::future::lazy;
 
 
@@ -12,7 +12,7 @@ fn main() {
         let file_writer = tokio::fs::File::create("out.txt");
         let consumer = WriteAdapter::new(file_writer);
 
-        pipe(producer, consumer);
+        producer.pipe(consumer);
 
         Ok(())
     }));

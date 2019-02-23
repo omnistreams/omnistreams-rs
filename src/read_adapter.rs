@@ -10,6 +10,7 @@ type Item = Vec<u8>;
 
 const CHUNK_SIZE: usize = 1024;
 
+#[derive(Debug)]
 pub struct ReadAdapter {
     message_tx: ProducerMessageTx,
     event_rx: Option<ProducerEventRx<Item>>,
