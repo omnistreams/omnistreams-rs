@@ -101,7 +101,6 @@ impl WebSocketAcceptorBuilder {
                             panic!("text ws message");
                         },
                         ws::Message::Binary(m) => {
-                            println!("{:?}", m);
                             msg_in_tx.unbounded_send(m);
                         },
                     }

@@ -103,7 +103,6 @@ impl<T> InnerTask<T>
             loop {
                 match message_rx.poll().unwrap() {
                     Async::Ready(Some(message)) => {
-                        println!("Receiver message: {:?}", message);
                         match message {
                             ProducerMessage::Request(num_items) => {
                                 let wire_message = vec![StreamRequestData as u8, *stream_id, num_items as u8];
@@ -144,7 +143,7 @@ impl<T> InnerTask<T>
                 self.receivers_tx.unbounded_send(receiver);
             },
             StreamData => {
-                println!("StreamData");
+                //println!("StreamData");
                 let (_, event_tx) = self.receiver_channels.get(&stream_id).expect("invalid stream id");
                 event_tx.unbounded_send(ProducerEvent::Data(data.to_vec()));
             },
