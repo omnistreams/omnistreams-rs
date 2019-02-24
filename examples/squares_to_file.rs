@@ -18,8 +18,8 @@ fn main() {
         producer.request(200);
 
         producer
-            .pipe_conduit(MapConduit::new(|x: i64| x*x))
-            .pipe_conduit(MapConduit::new(|x: i64| format!("{:?}\n", x).as_bytes().to_vec()))
+            .pipe_conduit(MapConduit::new(|x| x*x))
+            .pipe_conduit(MapConduit::new(|x| format!("{:?}\n", x).as_bytes().to_vec()))
             //.pipe(WriteAdapter::new(futures::future::ok(tokio::io::stdout())));
             .pipe(WriteAdapter::new(file_writer));
             
