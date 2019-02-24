@@ -5,11 +5,15 @@ mod read_adapter;
 mod write_adapter;
 mod map_conduit;
 mod range_producer;
+mod transport;
+mod multiplexer;
 
 pub use self::read_adapter::ReadAdapter;
 pub use self::write_adapter::WriteAdapter;
 pub use self::range_producer::{RangeProducer, RangeProducerBuilder};
 pub use self::map_conduit::MapConduit;
+pub use self::transport::{Transport, Acceptor, WebSocketTransport, WebSocketAcceptorBuilder};
+pub use self::multiplexer::Multiplexer;
 
 
 type ConsumerMessageRx<T> = mpsc::UnboundedReceiver<ConsumerMessage<T>>;
