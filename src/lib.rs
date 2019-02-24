@@ -8,7 +8,7 @@ mod range_producer;
 
 pub use self::read_adapter::ReadAdapter;
 pub use self::write_adapter::WriteAdapter;
-pub use self::range_producer::RangeProducer;
+pub use self::range_producer::{RangeProducer, RangeProducerBuilder};
 pub use self::map_conduit::MapConduit;
 
 
@@ -100,7 +100,7 @@ pub fn pipe<T, P, C>(mut producer: P, mut consumer: C)
                 consumer.write(data);
             },
             ProducerEvent::End => {
-                println!("producer ended");
+                consumer.end();
             },
         }
         Ok(())

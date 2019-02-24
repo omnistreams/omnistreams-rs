@@ -78,7 +78,7 @@ impl<F, A, B> InnerTask<F, A, B>
                             (&self.p_event_tx).unbounded_send(ProducerEvent::Data(mapped));
                         },
                         Some(ConsumerMessage::End) => {
-                            println!("end");
+                            println!("consumer end");
                             self.ended = true;
                             break;
                         },

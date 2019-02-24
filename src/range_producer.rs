@@ -15,19 +15,48 @@ pub struct RangeProducer {
     event_rx: Option<ProducerEventRx<Item>>,
 }
 
+pub struct RangeProducerBuilder {
+    start: Item,
+    stop: Option<Item>,
+}
+
+impl RangeProducerBuilder {
+    pub fn new() -> RangeProducerBuilder {
+        RangeProducerBuilder {
+            start: 0,
+            stop: None,
+        }
+    }
+
+    pub fn start(mut self, value: Item) -> RangeProducerBuilder {
+        self.start = value;
+        self
+    }
+
+    pub fn stop(mut self, value: Item) -> RangeProducerBuilder {
+        self.stop = Some(value);
+        self
+    }
+
+    pub fn build(self) -> RangeProducer {
+        RangeProducer::new(self.start, self.stop)
+    }
+}
+
 struct InnerTask {
     message_rx: ProducerMessageRx,
     event_tx: ProducerEventTx<Item>,
     demand: usize,
     current_value: Item,
+    stop: Option<Item>,
 }
 
 impl RangeProducer {
-    pub fn new() -> RangeProducer {
+    pub fn new(start: Item, stop: Option<Item>) -> RangeProducer {
         let (message_tx, message_rx) = mpsc::unbounded::<ProducerMessage>();
         let (event_tx, event_rx) = mpsc::unbounded::<ProducerEvent<Item>>();
 
-        let inner_task = InnerTask::new(message_rx, event_tx);
+        let inner_task = InnerTask::new(message_rx, event_tx, start, stop);
         tokio::spawn(inner_task.map_err(|_| {}));
 
         RangeProducer {
@@ -54,15 +83,16 @@ impl Producer<Item> for RangeProducer {
     }
 }
 
-impl InnerTask
-{
-    fn new(message_rx: ProducerMessageRx, event_tx: ProducerEventTx<Item>) -> InnerTask {
+impl InnerTask {
+    fn new(message_rx: ProducerMessageRx, event_tx: ProducerEventTx<Item>,
+           start: Item, stop: Option<Item>) -> InnerTask {
 
         InnerTask {
             message_rx,
             event_tx,
             demand: 0,
-            current_value: 0,
+            current_value: start,
+            stop,
         }
     }
 }
@@ -80,6 +110,13 @@ impl Future for InnerTask {
                     while self.demand > 0 {
                         (&self.event_tx).unbounded_send(ProducerEvent::Data(self.current_value)).unwrap();
                         self.current_value += 1;
+
+                        if let Some(stop_value) = self.stop { 
+                            if self.current_value == stop_value {
+                                (&self.event_tx).unbounded_send(ProducerEvent::End).unwrap();
+                                return Ok(Async::Ready(()));
+                            }
+                        }
                         self.demand -= 1;
                     }
                 },
