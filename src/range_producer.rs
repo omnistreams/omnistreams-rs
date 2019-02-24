@@ -1,7 +1,6 @@
 use tokio::io;
 use tokio::prelude::*;
 use futures::sync::mpsc;
-use futures::future::lazy;
 use super::{
     Producer, ProducerEvent, ProducerEventRx, ProducerEventTx,
     ProducerMessage, ProducerMessageRx, ProducerMessageTx,
@@ -140,12 +139,13 @@ impl Future for InnerTask {
 #[cfg(test)]
 mod tests {
 
+    use futures::future::lazy;
     use super::*;
 
     #[test]
     fn create() {
         tokio::run(lazy(|| {
-            RangeProducer::new();
+            RangeProducer::new(0, None);
 
             Ok(())
         }));
@@ -154,11 +154,11 @@ mod tests {
     #[test]
     fn simple() {
         tokio::run(lazy(|| {
-            let mut producer = RangeProducer::new();
+            let mut producer = RangeProducer::new(1, None);
 
             let events = producer.event_stream().unwrap();
 
-            tokio::spawn(events.for_each(|event| {
+            tokio::spawn(events.for_each(|_event| {
                 Ok(())
             })
             .map_err(|_| {}));

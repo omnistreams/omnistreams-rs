@@ -42,7 +42,7 @@ pub trait Producer<T> {
         pipe(self, consumer);
     }
 
-    fn pipe_conduit<C, U>(mut self, conduit: C) -> C::ConcreteProducer
+    fn pipe_conduit<C, U>(self, conduit: C) -> C::ConcreteProducer
         where Self: Sized + Send + 'static,
               C: Conduit<T, U> + Sized + Send + 'static,
               T: Send + 'static,

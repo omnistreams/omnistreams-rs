@@ -6,7 +6,6 @@ use super::{
 };
 use std::marker::PhantomData;
 use futures::sync::mpsc;
-use futures::future::lazy;
 use tokio::io;
 use tokio::prelude::*;
 
@@ -51,12 +50,10 @@ impl<F, A, B> InnerTask<F, A, B>
                 Async::Ready(message) => {
                     match message {
                         Some(ProducerMessage::Request(n)) => {
-                            println!("request made");
                             // just forward the request to the consumer end
-                            (&self.c_event_tx).unbounded_send(ConsumerEvent::Request(n));
+                            (&self.c_event_tx).unbounded_send(ConsumerEvent::Request(n)).unwrap();
                         },
                         None => {
-                            println!("none received on prod msg");
                             break;
                         }
                     }
@@ -75,15 +72,13 @@ impl<F, A, B> InnerTask<F, A, B>
                     match message {
                         Some(ConsumerMessage::Write(data)) => {
                             let mapped = (self.f)(data);
-                            (&self.p_event_tx).unbounded_send(ProducerEvent::Data(mapped));
+                            (&self.p_event_tx).unbounded_send(ProducerEvent::Data(mapped)).unwrap();
                         },
                         Some(ConsumerMessage::End) => {
-                            println!("consumer end");
                             self.ended = true;
                             break;
                         },
                         None => {
-                            println!("none received on prod msg");
                             break;
                         }
                     }
@@ -234,30 +229,23 @@ impl<B> Producer<B> for MapProducer<B> {
 #[cfg(test)]
 mod tests {
 
+    use futures::future::lazy;
     use super::*;
-
-    #[test]
-    fn create() {
-        //let x = MapConduit {
-        //    f: |x: u8| { "hi there" },
-        //    in_type: PhantomData,
-        //    out_type: PhantomData,
-        //};
-    }
 
     #[test]
     fn request_is_forwarded() {
         tokio::run(lazy(|| {
-            let mut conduit = MapConduit::new(|x: i32| 0);
+            let mut conduit = MapConduit::new(|_: i32| 0);
 
             let consumer_events = Consumer::event_stream(&mut conduit).unwrap();
 
-            let task = tokio::spawn(consumer_events.for_each(|event| {
+            tokio::spawn(consumer_events.for_each(|_event| {
                 Ok(())
             })
             .map_err(|_| {}));
 
             conduit.request(10);
+            conduit.end();
 
             Ok(())
         }));
@@ -267,13 +255,13 @@ mod tests {
     fn split() {
 
         tokio::run(lazy(|| {
-            let mut conduit = MapConduit::new(|x: i32| 0);
+            let conduit = MapConduit::new(|_: i32| 0);
 
             let (mut consumer, mut producer) = conduit.split();
 
             let consumer_events = consumer.event_stream().unwrap();
 
-            let task = tokio::spawn(consumer_events.for_each(|event| {
+            tokio::spawn(consumer_events.for_each(|_event| {
                 //println!("{:?}", event);
                 //assert!(event == ConsumerEvent::Request(12));
                 Ok(())
@@ -281,12 +269,9 @@ mod tests {
             .map_err(|_| {}));
 
             producer.request(11);
+            consumer.end();
 
             Ok(())
         }));
-    }
-    #[test]
-    fn conduit() {
-        //let c = MapConduit::new();
     }
 }
