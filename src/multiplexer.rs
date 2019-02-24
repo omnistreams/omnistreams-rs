@@ -116,7 +116,8 @@ impl InnerTask {
             },
             StreamData => {
                 println!("StreamData");
-                println!("{:?}", data);
+                let (_, event_tx) = self.receiver_channels.get(&stream_id).expect("invalid stream id");
+                event_tx.unbounded_send(ProducerEvent::Data(data.to_vec()));
             },
             StreamEnd => {
                 println!("StreamEnd");
