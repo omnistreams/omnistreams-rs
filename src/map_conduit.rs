@@ -75,6 +75,7 @@ impl<F, A, B> InnerTask<F, A, B>
                             (&self.p_event_tx).unbounded_send(ProducerEvent::Data(mapped)).unwrap();
                         },
                         Some(ConsumerMessage::End) => {
+                            (&self.p_event_tx).unbounded_send(ProducerEvent::End).unwrap();
                             self.ended = true;
                             break;
                         },
@@ -179,7 +180,7 @@ impl<A, B> Producer<B> for MapConduit<A, B> {
     }
 
     fn event_stream(&mut self) -> Option<ProducerEventRx<B>> {
-        None
+        self.producer.event_stream()
     }
 }
 
