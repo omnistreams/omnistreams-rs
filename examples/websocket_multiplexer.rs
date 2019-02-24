@@ -26,7 +26,7 @@ fn main() {
     }));
 }
 
-fn handle_transport<T: Transport>(transport: T) {
+fn handle_transport<T: Transport + Send + 'static>(transport: T) {
     let mut mux = Multiplexer::new(transport);
 
     let events = mux.events().unwrap();
@@ -40,12 +40,13 @@ fn handle_transport<T: Transport>(transport: T) {
     }));
 }
 
-fn handle_producer<P: Producer<Vec<u8>>>(mut producer: P) {
+fn handle_producer<P: Producer<Vec<u8>> + Send + 'static>(mut producer: P) {
 
     let events = producer.event_stream().unwrap();
 
-    tokio::spawn(events.for_each(|event| {
+    tokio::spawn(events.for_each(move |event| {
         println!("receiver event: {:?}", event);
+        producer.request(2);
         Ok(())
     })
     .map_err(|e| {

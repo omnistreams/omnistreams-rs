@@ -7,6 +7,7 @@ type WebSocketTransportRx = mpsc::UnboundedReceiver<WebSocketTransport>;
 
 
 pub trait Transport {
+    fn send(&mut self, message: Message);
     fn messages(&mut self) -> Option<MessageRx>;
 }
 
@@ -16,6 +17,7 @@ pub trait Acceptor {
 
 #[derive(Debug)]
 pub struct WebSocketTransport {
+    socket: ws::Sender,
     message_rx: Option<MessageRx>,
 }
 
@@ -34,12 +36,18 @@ pub struct WebSocketInitiator {
 impl WebSocketTransport {
     pub fn new(socket: ws::Sender, rx: MessageRx) -> WebSocketTransport {
         WebSocketTransport {
+            socket,
             message_rx: Some(rx),
         }
     }
 }
 
 impl Transport for WebSocketTransport {
+
+    fn send(&mut self, message: Message) {
+        self.socket.send(message);
+    }
+
     fn messages(&mut self) -> Option<MessageRx> {
         Option::take(&mut self.message_rx)
     }

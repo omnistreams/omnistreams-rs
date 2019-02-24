@@ -11,3 +11,8 @@ ws.on('open', () => {
   ws.send(new Uint8Array([1, 0, 67, 68]))
   ws.send(new Uint8Array([2, 0]))
 })
+
+ws.on('message', (rawMessage) => {
+  const message = new Uint8Array(rawMessage)
+  console.log(message)
+})

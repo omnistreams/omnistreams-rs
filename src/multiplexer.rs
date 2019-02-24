@@ -28,7 +28,10 @@ pub struct Multiplexer {
     receivers_rx: Option<mpsc::UnboundedReceiver<Receiver>>,
 }
 
-struct InnerTask {
+struct InnerTask<T> 
+    where T: Transport + Send,
+{
+    transport: T,
     message_rx: MessageRx,
     receivers_tx: mpsc::UnboundedSender<Receiver>,
     receiver_channels: HashMap<Id, (ProducerMessageRx, ProducerEventTx<Message>)>,
@@ -42,7 +45,7 @@ pub struct Receiver {
 
 impl Producer<Message> for Receiver {
     fn request(&mut self, num_items: usize) {
-        //self.producer.request(num_items);
+        self.message_tx.unbounded_send(ProducerMessage::Request(num_items));
     }
 
     fn event_stream(&mut self) -> Option<ProducerEventRx<Message>> {
@@ -51,12 +54,13 @@ impl Producer<Message> for Receiver {
 }
 
 impl Multiplexer {
-    pub fn new<T: Transport>(mut transport: T) -> Multiplexer {
+    pub fn new<T: Transport + Send + 'static>(mut transport: T) -> Multiplexer {
 
         let message_rx = transport.messages().expect("messages");
         let (receivers_tx, receivers_rx) = mpsc::unbounded::<Receiver>();
 
         let inner = InnerTask {
+            transport,
             message_rx,
             receivers_tx,
             receiver_channels: HashMap::new(),
@@ -78,17 +82,42 @@ impl EventEmitter<Receiver> for Multiplexer {
     }
 }
 
-impl InnerTask {
+impl<T> InnerTask<T> 
+    where T: Transport + Send,
+{
     fn process_transport_messages(&mut self) {
         loop {
             match self.message_rx.poll().unwrap() {
                 Async::Ready(message) => {
-                    println!("Message: {:?}", message);
                     self.handle_message(&message.expect("message"));
                 },
                 Async::NotReady => {
                     break;
                 },
+            }
+        }
+    }
+
+    fn process_receiver_messages(&mut self) {
+        for (stream_id, (message_rx, _event_tx)) in self.receiver_channels.iter_mut() {
+            loop {
+                match message_rx.poll().unwrap() {
+                    Async::Ready(Some(message)) => {
+                        println!("Receiver message: {:?}", message);
+                        match message {
+                            ProducerMessage::Request(num_items) => {
+                                let wire_message = vec![StreamRequestData as u8, *stream_id, num_items as u8];
+                                self.transport.send(wire_message);
+                            }
+                        }
+                    },
+                    Async::Ready(None) => {
+                        break;
+                    },
+                    Async::NotReady => {
+                        break;
+                    },
+                }
             }
         }
     }
@@ -121,6 +150,8 @@ impl InnerTask {
             },
             StreamEnd => {
                 println!("StreamEnd");
+                let (_, event_tx) = self.receiver_channels.get(&stream_id).expect("invalid stream id");
+                event_tx.unbounded_send(ProducerEvent::End);
             },
             TerminateSender => {
                 println!("TerminateSender");
@@ -144,12 +175,15 @@ impl InnerTask {
     }
 }
 
-impl Future for InnerTask {
+impl<T> Future for InnerTask<T>
+    where T: Transport + Send,
+{
     type Item = ();
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         self.process_transport_messages();
+        self.process_receiver_messages();
         //Ok(Async::Ready(()))
         Ok(Async::NotReady)
     }
