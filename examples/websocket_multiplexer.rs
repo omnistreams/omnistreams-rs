@@ -1,4 +1,4 @@
-use omnistreams::{Acceptor, WebSocketAcceptorBuilder, Multiplexer};
+use omnistreams::{EventEmitter, Acceptor, WebSocketAcceptorBuilder, Multiplexer};
 use futures::future::lazy;
 use tokio::prelude::*;
 
@@ -13,7 +13,18 @@ fn main() {
 
         tokio::spawn(transports.for_each(|transport| {
             println!("{:?}", transport);
-            let mux = Multiplexer::new(transport);
+            let mut mux = Multiplexer::new(transport);
+
+            let events = mux.events().unwrap();
+
+            tokio::spawn(events.for_each(|receiver| {
+                println!("I don't believe it");
+                Ok(())
+            })
+            .map_err(|e| {
+                eprintln!("{:?}", e);
+            }));
+
             Ok(())
         })
         .map_err(|e| {

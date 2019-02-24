@@ -29,6 +29,11 @@ type ProducerMessageRx = mpsc::UnboundedReceiver<ProducerMessage>;
 type ProducerMessageTx = mpsc::UnboundedSender<ProducerMessage>;
 
 
+// TODO: maybe add a default method for taking the events object
+pub trait EventEmitter<T> {
+    fn events(&mut self) -> Option<mpsc::UnboundedReceiver<T>>;
+}
+
 pub trait Consumer<T> {
     fn write(&self, data: T);
     fn end(&self);

@@ -1,7 +1,11 @@
-use super::{Transport, Producer, ProducerEventRx};
+use super::{
+    EventEmitter, Transport, Producer, ProducerEventRx, ProducerMessage, ProducerMessageTx,
+    ProducerEvent, ProducerEventTx, ProducerMessageRx,
+};
 use tokio::io;
 use tokio::prelude::*;
 use futures::sync::mpsc;
+use std::collections::HashMap;
 
 use self::MessageType::*;
 
@@ -16,26 +20,33 @@ enum MessageType {
 
 type Message = Vec<u8>;
 type MessageRx = mpsc::UnboundedReceiver<Message>;
+type EventTx = mpsc::UnboundedSender<Message>;
+type Id = u8;
 
 
 pub struct Multiplexer {
+    receivers_rx: Option<mpsc::UnboundedReceiver<Receiver>>,
 }
 
 struct InnerTask {
     message_rx: MessageRx,
+    receivers_tx: mpsc::UnboundedSender<Receiver>,
+    receiver_channels: HashMap<Id, (ProducerMessageRx, ProducerEventTx<Message>)>,
+    next_stream_id: Id,
 }
 
-struct Receiver<T> {
-    message_rx: Option<ProducerEventRx<T>>,
+pub struct Receiver {
+    message_tx: ProducerMessageTx,
+    event_rx: Option<ProducerEventRx<Message>>,
 }
 
-impl<T> Producer<T> for Receiver<T> {
+impl Producer<Message> for Receiver {
     fn request(&mut self, num_items: usize) {
         //self.producer.request(num_items);
     }
 
-    fn event_stream(&mut self) -> Option<ProducerEventRx<T>> {
-        Option::take(&mut self.message_rx)
+    fn event_stream(&mut self) -> Option<ProducerEventRx<Message>> {
+        Option::take(&mut self.event_rx)
     }
 }
 
@@ -43,15 +54,27 @@ impl Multiplexer {
     pub fn new<T: Transport>(mut transport: T) -> Multiplexer {
 
         let message_rx = transport.messages().expect("messages");
+        let (receivers_tx, receivers_rx) = mpsc::unbounded::<Receiver>();
 
         let inner = InnerTask {
             message_rx,
+            receivers_tx,
+            receiver_channels: HashMap::new(),
+            next_stream_id: 0,
         };
 
         tokio::spawn(inner.map_err(|_| {}));
 
         Multiplexer {
+            receivers_rx: Some(receivers_rx),
         }
+    }
+
+}
+
+impl EventEmitter<Receiver> for Multiplexer {
+    fn events(&mut self) -> Option<mpsc::UnboundedReceiver<Receiver>> {
+        Option::take(&mut self.receivers_rx)
     }
 }
 
@@ -79,6 +102,17 @@ impl InnerTask {
         match message_type {
             CreateReceiver => {
                 println!("CreateReceiver: {}", stream_id);
+                let id = self.next_stream_id();
+                let (message_tx, message_rx) = mpsc::unbounded::<ProducerMessage>();
+                let (event_tx, event_rx) = mpsc::unbounded::<ProducerEvent<Message>>();
+
+                let receiver = Receiver {
+                    message_tx,
+                    event_rx: Some(event_rx),
+                };
+
+                self.receiver_channels.insert(id, (message_rx, event_tx));
+                self.receivers_tx.unbounded_send(receiver);
             },
             StreamData => {
                 println!("StreamData");
@@ -99,6 +133,14 @@ impl InnerTask {
         }
     }
 
+    fn next_stream_id(&mut self) -> Id {
+        let id = self.next_stream_id;
+        self.next_stream_id += 1;
+        if self.next_stream_id == 255 {
+            panic!("out of stream ids");
+        }
+        id
+    }
 }
 
 impl Future for InnerTask {
