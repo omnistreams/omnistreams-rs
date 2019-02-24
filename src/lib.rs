@@ -9,6 +9,7 @@ mod range_producer;
 pub use self::read_adapter::ReadAdapter;
 pub use self::write_adapter::WriteAdapter;
 pub use self::range_producer::RangeProducer;
+pub use self::map_conduit::MapConduit;
 
 
 type ConsumerMessageRx<T> = mpsc::UnboundedReceiver<ConsumerMessage<T>>;
@@ -41,20 +42,24 @@ pub trait Producer<T> {
         pipe(self, consumer);
     }
 
-    fn pipe_conduit<C, U, V>(self, conduit: C) -> C::ConcreteProducer 
+    fn pipe_conduit<C, U>(mut self, conduit: C) -> C::ConcreteProducer
         where Self: Sized + Send + 'static,
               C: Conduit<T, U> + Sized + Send + 'static,
-              //B: Send + 'static,
+              T: Send + 'static,
+              U: Send + 'static,
+              C::ConcreteConsumer: Send,
     {
         let (consumer, producer) = conduit.split();
+        pipe(self, consumer);
+
         producer
     }
 }
 
 pub trait Conduit<A, B> : Consumer<A> + Producer<B> {
     
-    type ConcreteConsumer;
-    type ConcreteProducer;
+    type ConcreteConsumer: Consumer<A>;
+    type ConcreteProducer: Producer<B>;
 
     fn split(self) -> (Self::ConcreteConsumer, Self::ConcreteProducer);
 }

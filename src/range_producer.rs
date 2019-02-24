@@ -76,7 +76,6 @@ impl Future for InnerTask {
             match self.message_rx.poll() {
                 Ok(Async::Ready(Some(ProducerMessage::Request(num_items)))) => {
                     self.demand += num_items;
-                    println!("{}", self.demand);
 
                     while self.demand > 0 {
                         (&self.event_tx).unbounded_send(ProducerEvent::Data(self.current_value)).unwrap();
@@ -123,7 +122,6 @@ mod tests {
             let events = producer.event_stream().unwrap();
 
             tokio::spawn(events.for_each(|event| {
-                println!("{:?}", event);
                 Ok(())
             })
             .map_err(|_| {}));

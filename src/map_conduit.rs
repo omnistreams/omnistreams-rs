@@ -11,40 +11,47 @@ use tokio::io;
 use tokio::prelude::*;
 
 
-pub struct MapConduit<F, A, B>
-    where F: Fn(A) -> B
-{
-    f: F,
+#[derive(Debug)]
+pub struct MapConduit<A, B> {
     in_type: PhantomData<A>,
     out_type: PhantomData<B>,
     consumer: MapConsumer<A>,
     producer: MapProducer<B>,
 }
 
+#[derive(Debug)]
 pub struct MapConsumer<A> {
     message_tx: ConsumerMessageTx<A>,
     event_rx: Option<ConsumerEventRx>,
 }
 
+#[derive(Debug)]
 pub struct MapProducer<B> {
     message_tx: ProducerMessageTx,
     event_rx: Option<ProducerEventRx<B>>,
 }
 
-struct InnerTask<A, B> {
+struct InnerTask<F, A, B>
+    where F: Fn(A) -> B + Send
+{
+    f: F,
     c_message_rx: ConsumerMessageRx<A>,
     c_event_tx: ConsumerEventTx,
     p_message_rx: ProducerMessageRx,
     p_event_tx: ProducerEventTx<B>,
+    ended: bool,
 }
 
-impl<A, B> InnerTask<A, B> {
+impl<F, A, B> InnerTask<F, A, B>
+    where F: Fn(A) -> B + Send
+{
     fn process_producer_messages(&mut self) {
         loop {
             match self.p_message_rx.poll().unwrap() {
                 Async::Ready(message) => {
                     match message {
                         Some(ProducerMessage::Request(n)) => {
+                            println!("request made");
                             // just forward the request to the consumer end
                             (&self.c_event_tx).unbounded_send(ConsumerEvent::Request(n));
                         },
@@ -60,27 +67,64 @@ impl<A, B> InnerTask<A, B> {
             }
         }
     }
+
+    fn process_consumer_messages(&mut self) {
+        loop {
+            match self.c_message_rx.poll().unwrap() {
+                Async::Ready(message) => {
+                    match message {
+                        Some(ConsumerMessage::Write(data)) => {
+                            let mapped = (self.f)(data);
+                            (&self.p_event_tx).unbounded_send(ProducerEvent::Data(mapped));
+                        },
+                        Some(ConsumerMessage::End) => {
+                            println!("end");
+                            self.ended = true;
+                            break;
+                        },
+                        None => {
+                            println!("none received on prod msg");
+                            break;
+                        }
+                    }
+                },
+                Async::NotReady => {
+                    break;
+                },
+            }
+        }
+    }
 }
 
-impl<A, B> Future for InnerTask<A, B> {
+impl<F, A, B> Future for InnerTask<F, A, B>
+    where F: Fn(A) -> B + Send
+{
     type Item = ();
     type Error = io::Error;
     
     fn poll(&mut self) -> Poll<(), io::Error> {
         self.process_producer_messages();
-        Ok(Async::Ready(()))
+        self.process_consumer_messages();
+        //Ok(Async::Ready(()))
+
+        if self.ended {
+            Ok(Async::Ready(()))
+        }
+        else {
+            //task::current().notify();
+            Ok(Async::NotReady)
+        }
     }
 }
 
 
 
 
-impl<F, A, B> MapConduit<F, A, B>
-    where F: Fn(A) -> B,
-          A: Send + 'static,
+impl<A, B> MapConduit<A, B>
+    where A: Send + 'static,
           B: Send + 'static,
 {
-    pub fn new(f: F) -> MapConduit<F, A, B> {
+    pub fn new<F: Fn(A) -> B + Send + 'static>(f: F) -> MapConduit<A, B> {
 
         let (c_message_tx, c_message_rx) = mpsc::unbounded::<ConsumerMessage<A>>();
         let (c_event_tx, c_event_rx) = mpsc::unbounded::<ConsumerEvent>();
@@ -89,10 +133,12 @@ impl<F, A, B> MapConduit<F, A, B>
         let (p_event_tx, p_event_rx) = mpsc::unbounded::<ProducerEvent<B>>();
 
         let inner = InnerTask {
+            f,
             c_message_rx,
             c_event_tx,
             p_message_rx,
             p_event_tx,
+            ended: false,
         };
 
         tokio::spawn(inner.map_err(|e| {
@@ -110,7 +156,6 @@ impl<F, A, B> MapConduit<F, A, B>
         };
 
         MapConduit {
-            f,
             in_type: PhantomData,
             out_type: PhantomData,
             consumer: consumer_half,
@@ -119,9 +164,7 @@ impl<F, A, B> MapConduit<F, A, B>
     }
 }
 
-impl<F, A, B> Consumer<A> for MapConduit<F, A, B>
-    where F: Fn(A) -> B,
-{
+impl<A, B> Consumer<A> for MapConduit<A, B> {
     fn write(&self, data: A) {
         self.consumer.write(data);
     }
@@ -135,9 +178,7 @@ impl<F, A, B> Consumer<A> for MapConduit<F, A, B>
     }
 }
 
-impl<F, A, B> Producer<B> for MapConduit<F, A, B>
-    where F: Fn(A) -> B,
-{
+impl<A, B> Producer<B> for MapConduit<A, B> {
     fn request(&mut self, num_items: usize) {
         self.producer.request(num_items);
     }
@@ -148,9 +189,7 @@ impl<F, A, B> Producer<B> for MapConduit<F, A, B>
 }
 
 
-impl<F, A, B> Conduit<A, B> for MapConduit<F, A, B>
-    where F: Fn(A) -> B,
-{
+impl<A, B> Conduit<A, B> for MapConduit<A, B> {
     type ConcreteConsumer = MapConsumer<A>;
     type ConcreteProducer = MapProducer<B>;
 
