@@ -8,6 +8,6 @@ ws.on('open', () => {
   ws.send(new Uint8Array([0, 0]))
   ws.send(new Uint8Array([1, 0, 65]))
   ws.send(new Uint8Array([1, 0, 66]))
-  ws.send(new Uint8Array([1, 0, 67]))
+  ws.send(new Uint8Array([1, 0, 67, 68]))
   ws.send(new Uint8Array([2, 0]))
 })

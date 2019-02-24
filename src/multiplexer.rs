@@ -1,15 +1,7 @@
-use super::Transport;
+use super::{Transport, Producer, ProducerEventRx};
 use tokio::io;
 use tokio::prelude::*;
 use futures::sync::mpsc;
-
-
-const MESSAGE_TYPE_CREATE_RECEIVE_STREAM: u8 = 0;
-const MESSAGE_TYPE_STREAM_DATA: u8 = 1;
-const MESSAGE_TYPE_STREAM_END: u8 = 2;
-const MESSAGE_TYPE_TERMINATE_SEND_STREAM: u8 = 3;
-const MESSAGE_TYPE_STREAM_REQUEST_DATA: u8 = 4;
-const MESSAGE_TYPE_CONTROL_MESSAGE: u8 = 5;
 
 use self::MessageType::*;
 
@@ -22,22 +14,6 @@ enum MessageType {
     ControlMessage = 5,
 }
 
-impl From<u8> for MessageType {
-    fn from(val: u8) -> MessageType {
-        match val {
-            0 => CreateReceiver,
-            1 => StreamData,
-            2 => StreamEnd,
-            3 => TerminateSender,
-            4 => StreamRequestData,
-            6 => ControlMessage,
-            _ => {
-                panic!("Invalid message type");
-            }
-        }
-    }
-}
-
 type Message = Vec<u8>;
 type MessageRx = mpsc::UnboundedReceiver<Message>;
 
@@ -47,6 +23,20 @@ pub struct Multiplexer {
 
 struct InnerTask {
     message_rx: MessageRx,
+}
+
+struct Receiver<T> {
+    message_rx: Option<ProducerEventRx<T>>,
+}
+
+impl<T> Producer<T> for Receiver<T> {
+    fn request(&mut self, num_items: usize) {
+        //self.producer.request(num_items);
+    }
+
+    fn event_stream(&mut self) -> Option<ProducerEventRx<T>> {
+        Option::take(&mut self.message_rx)
+    }
 }
 
 impl Multiplexer {
@@ -92,6 +82,7 @@ impl InnerTask {
             },
             StreamData => {
                 println!("StreamData");
+                println!("{:?}", data);
             },
             StreamEnd => {
                 println!("StreamEnd");
@@ -120,6 +111,24 @@ impl Future for InnerTask {
         Ok(Async::NotReady)
     }
 }
+
+
+impl From<u8> for MessageType {
+    fn from(val: u8) -> MessageType {
+        match val {
+            0 => CreateReceiver,
+            1 => StreamData,
+            2 => StreamEnd,
+            3 => TerminateSender,
+            4 => StreamRequestData,
+            6 => ControlMessage,
+            _ => {
+                panic!("Invalid message type");
+            }
+        }
+    }
+}
+
 
 
 #[cfg(test)]
