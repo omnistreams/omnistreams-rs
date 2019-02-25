@@ -1,6 +1,6 @@
 use omnistreams::{
     Producer, Transport, EventEmitter, Acceptor, WebSocketAcceptorBuilder,
-    Multiplexer, WriteAdapter,
+    Multiplexer, WriteAdapter, MapConduit
 };
 use futures::future::lazy;
 use tokio::prelude::*;
@@ -33,7 +33,8 @@ fn handle_transport<T: Transport + Send + 'static>(transport: T) {
 
     tokio::spawn(events.for_each(|producer| {
         let file_writer = tokio::fs::File::create("out.txt");
-        producer.pipe(WriteAdapter::new(file_writer));
+        producer
+            .pipe(WriteAdapter::new(file_writer));
         Ok(())
     })
     .map_err(|e| {

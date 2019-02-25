@@ -32,6 +32,7 @@ struct InnerTask<T>
     where T: Transport + Send,
 {
     transport: T,
+    transport_done: bool,
     message_rx: MessageRx,
     receivers_tx: mpsc::UnboundedSender<Receiver>,
     receiver_channels: HashMap<Id, (ProducerMessageRx, ProducerEventTx<Message>)>,
@@ -61,6 +62,7 @@ impl Multiplexer {
 
         let inner = InnerTask {
             transport,
+            transport_done: false,
             message_rx,
             receivers_tx,
             receiver_channels: HashMap::new(),
@@ -86,10 +88,23 @@ impl<T> InnerTask<T>
     where T: Transport + Send,
 {
     fn process_transport_messages(&mut self) {
+
+        if self.transport_done {
+            return;
+        }
+
         loop {
             match self.message_rx.poll().unwrap() {
                 Async::Ready(message) => {
-                    self.handle_message(&message.expect("message"));
+                    match message {
+                        Some(m) => {
+                            self.handle_message(&m);
+                        },
+                        None => {
+                            self.transport_done = true;
+                            break;
+                        }
+                    }
                 },
                 Async::NotReady => {
                     break;
@@ -183,8 +198,14 @@ impl<T> Future for InnerTask<T>
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         self.process_transport_messages();
         self.process_receiver_messages();
-        //Ok(Async::Ready(()))
-        Ok(Async::NotReady)
+
+        if self.transport_done && self.receiver_channels.len() == 0 {
+            println!("ready");
+            Ok(Async::Ready(()))
+        }
+        else {
+            Ok(Async::NotReady)
+        }
     }
 }
 
@@ -214,16 +235,28 @@ mod tests {
     use super::*;
 
     struct TestTransport {
+        message_rx: Option<MessageRx>,
     }
 
     impl TestTransport {
         fn new() -> TestTransport {
+
+            let (message_tx, message_rx) = mpsc::unbounded::<Message>();
+
             TestTransport {
+                message_rx: Some(message_rx),
             }
         }
     }
 
     impl Transport for TestTransport {
+        fn send(&mut self, message: Message) {
+            //self.socket.send(message);
+        }
+
+        fn messages(&mut self) -> Option<MessageRx> {
+            Option::take(&mut self.message_rx)
+        }
     }
 
     #[test]
@@ -232,5 +265,9 @@ mod tests {
             Multiplexer::new(TestTransport::new());
             Ok(())
         }));
+    }
+
+    #[test]
+    fn transfer_largefile() {
     }
 }
