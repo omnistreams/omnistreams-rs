@@ -44,8 +44,9 @@ fn handle_producer<P: Producer<Vec<u8>> + Send + 'static>(mut producer: P) {
 
     let events = producer.event_stream().unwrap();
 
-    tokio::spawn(events.for_each(move |event| {
-        println!("receiver event: {:?}", event);
+    producer.request(100);
+
+    tokio::spawn(events.for_each(move |_event| {
         producer.request(1);
         Ok(())
     })
