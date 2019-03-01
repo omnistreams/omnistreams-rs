@@ -218,9 +218,9 @@ impl From<u8> for MessageType {
             2 => StreamEnd,
             3 => TerminateSender,
             4 => StreamRequestData,
-            6 => ControlMessage,
+            5 => ControlMessage,
             _ => {
-                panic!("Invalid message type");
+                panic!("Invalid message type: {}", val);
             }
         }
     }

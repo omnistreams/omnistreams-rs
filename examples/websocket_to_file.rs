@@ -32,7 +32,7 @@ fn handle_transport<T: Transport + Send + 'static>(transport: T) {
     let events = mux.events().unwrap();
 
     tokio::spawn(events.for_each(|producer| {
-        let file_writer = tokio::fs::File::create("out.txt");
+        let file_writer = tokio::fs::File::create("outfile");
         producer
             .pipe(WriteAdapter::new(file_writer));
         Ok(())

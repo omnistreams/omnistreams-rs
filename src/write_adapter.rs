@@ -41,6 +41,7 @@ impl<T, U> InnerTask<T, U>
 
         let initial_demand = 1;
 
+        println!("send initial");
         (&event_tx).unbounded_send(ConsumerEvent::Request(initial_demand)).unwrap();
 
         InnerTask {

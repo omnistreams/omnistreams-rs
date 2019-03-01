@@ -2,17 +2,20 @@ use futures::sync::mpsc;
 use std::thread;
 use websocket::r#async::Server;
 use websocket::server::InvalidConnection;
-use websocket::message::{OwnedMessage};
+use websocket::message::{Message as WsMessage, OwnedMessage};
+use websocket::codec::ws::MessageCodec;
+use websocket::result::WebSocketError;
 use tokio::reactor::Handle;
 use tokio::codec::{Framed};
 use tokio::net::TcpStream;
-use websocket::codec::ws::MessageCodec;
 use futures::stream::{Stream, SplitSink};
 use futures::sink::{Sink};
 use futures::future::{Future};
+use std::fmt::Debug;
 
 type Message = Vec<u8>;
 type MessageRx = mpsc::UnboundedReceiver<Message>;
+type MessageTx = mpsc::UnboundedSender<Message>;
 type WebSocketTransportRx = mpsc::UnboundedReceiver<WebSocketTransport>;
 
 
@@ -26,8 +29,9 @@ pub trait Acceptor {
 }
 
 pub struct WebSocketTransport {
-    sink: SplitSink<Framed<TcpStream, MessageCodec<OwnedMessage>>>,
-    message_rx: Option<MessageRx>,
+    //sink: SplitSink<Framed<TcpStream, MessageCodec<OwnedMessage>>>,
+    in_rx: Option<MessageRx>,
+    out_tx: MessageTx,
 }
 
 pub struct WebSocketAcceptor {
@@ -54,12 +58,11 @@ impl WebSocketTransport {
 impl Transport for WebSocketTransport {
 
     fn send(&mut self, message: Message) {
-        //let sink = &self.sink;
-        //sink.send(OwnedMessage::Binary(message));
+        self.out_tx.unbounded_send(message).expect("ws transport send");
     }
 
     fn messages(&mut self) -> Option<MessageRx> {
-        Option::take(&mut self.message_rx)
+        Option::take(&mut self.in_rx)
     }
 }
 
@@ -96,90 +99,90 @@ impl WebSocketAcceptorBuilder {
         let (tx, rx) = mpsc::unbounded::<WebSocketTransport>();
 
         let server = Server::bind(addr, &Handle::default()).expect("ws server bind");
-        let f = server.incoming()
-            //.map_err(|InvalidConnection { error, .. }| error)
-            .map_err(|_| { 
-                println!("ws error");
-                ()
-            })
+
+        let f = server
+            .incoming()
+            // we don't wanna save the stream if it drops
+            .map_err(|InvalidConnection { error, .. }| error)
             .for_each(move |(upgrade, addr)| {
-                println!("got conn");
+                println!("Got a connection from: {}", addr);
 
+                let tx = tx.clone();
 
-                let f = upgrade.accept()
-                    .and_then(|(s, _)| {
-
-                        println!("accepted");
-
-                        let (message_tx, message_rx) = mpsc::unbounded::<Message>();
+                // accept the request to be a ws connection if it does
+                let f = upgrade
+                    .accept()
+                    .and_then(move |(s, _)| {
                         let (sink, stream) = s.split();
+                        let (in_tx, in_rx) = mpsc::unbounded::<Message>();
+                        let (out_tx, out_rx) = mpsc::unbounded::<Message>();
 
-                        //let transport = WebSocketTransport {
-                        //    sink,
-                        //    message_rx: Some(message_rx),
-                        //};
+                        let sink_f = sink.send_all(out_rx.map_err(|e| {
+                            WebSocketError::NoDataAvailable
+                        })
+                        .map(|m| {
+                            OwnedMessage::Binary(m)
+                        }));
+
+                        spawn_future(sink_f, "Sink Fut");
+
+                        let transport = WebSocketTransport {
+                            out_tx,
+                            in_rx: Some(in_rx),
+                        };
+
+                        tx.unbounded_send(transport).expect("send transport");
 
                         stream
                             .take_while(|m| Ok(!m.is_close()))
                             .filter_map(|m| {
-                                println!("Message from Client: {:?}", m);
                                 match m {
-                                    OwnedMessage::Ping(p) => {
-                                        println!("ping");
-                                        //sink.send(Some(OwnedMessage::Pong(p)))
+                                    OwnedMessage::Ping(_p) => {
+                                        //Some(OwnedMessage::Pong(p))
                                         None
                                     },
-                                    OwnedMessage::Pong(_) => {
-                                        println!("pong");
-                                        None
-                                    },
-                                    OwnedMessage::Binary(m) => {
-                                        println!("bin: {:?}", m);
-                                        Some(m)
+                                    OwnedMessage::Pong(_) => None,
+                                    OwnedMessage::Binary(bm) => {
+                                        Some(bm)
                                     },
                                     _ => {
-                                        println!("other");
+                                        //Some(m)
                                         None
-                                    }
+                                    },
                                 }
                             })
-                            //.forward(message_tx)
-                            ;
-
-                        Ok(())
+                            // TODO: This should be possible using Stream.forward
+                            //.forward(in_tx)
+                            .for_each(move |m| {
+                                in_tx.unbounded_send(m).expect("send");
+                                Ok(())
+                            })
+                            // TODO: properly close
+                            //.and_then(|(_, sink)| sink.send(OwnedMessage::Close(None)))
                     });
+
+                spawn_future(f, "Client Status");
+
                 Ok(())
-            });
+        });
 
-        tokio::spawn(f);
-
-        //thread::spawn(move || {
-        //    ws::listen(addr, |socket| {
-
-        //        let (msg_in_tx, msg_in_rx) = mpsc::unbounded::<Message>();
-
-        //        let transport = WebSocketTransport::new(socket, msg_in_rx);
-
-        //        tx.unbounded_send(transport);
-
-        //        move |msg| {
-        //            match msg {
-        //                ws::Message::Text(_) => {
-        //                    panic!("text ws message");
-        //                },
-        //                ws::Message::Binary(m) => {
-        //                    msg_in_tx.unbounded_send(m);
-        //                },
-        //            }
-        //            Ok(())
-        //        }
-        //    });
-        //});
+        spawn_future(f, "Server fut");
 
         WebSocketAcceptor {
             stream: Some(rx),
         }
     }
+}
+
+fn spawn_future<F, I, E>(f: F, desc: &'static str)
+where
+	F: Future<Item = I, Error = E> + 'static + Send,
+	E: Debug,
+{
+	tokio::spawn(
+		f.map_err(move |e| println!("{}: '{:?}'", desc, e))
+			.map(move |_| println!("{}: Finished.", desc)),
+	);
 }
 
 impl WebSocketInitiator {
