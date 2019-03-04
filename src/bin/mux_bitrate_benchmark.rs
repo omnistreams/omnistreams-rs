@@ -2,7 +2,7 @@ use omnistreams::{Producer, ProducerEvent, Multiplexer, Transport, EventEmitter}
 use futures::future::lazy;
 use tokio::prelude::*;
 use futures::sync::mpsc;
-use std::time::{Duration, Instant};
+use std::time::{Instant};
 
 
 type Message = Vec<u8>;
@@ -25,14 +25,11 @@ impl TestTransport {
             message_rx: Some(in_rx),
         }, in_tx, out_rx)
     }
-
-    fn receive(&mut self, message: Message) {
-    }
 }
 
 impl Transport for TestTransport {
     fn send(&mut self, message: Message) {
-        (&self.message_tx).send(message);
+        (&self.message_tx).unbounded_send(message).unwrap();
     }
 
     fn messages(&mut self) -> Option<MessageRx> {
@@ -85,8 +82,8 @@ fn main() {
             eprintln!("{:?}", e);
         }));
 
-        tx.unbounded_send(vec![0, 0]);
-        tx.unbounded_send(vec![1, 0, 65]);
+        tx.unbounded_send(vec![0, 0]).unwrap();
+        tx.unbounded_send(vec![1, 0, 65]).unwrap();
 
         let chunk_size = 1024*1024;
         let mut data = vec![65; chunk_size];
@@ -98,18 +95,18 @@ fn main() {
 
         println!("len: {}", data.len());
 
-        tokio::spawn(rx.for_each(move |message| {
+        tokio::spawn(rx.for_each(move |_message| {
             //println!("{:?}", message);
 
             if index < num_chunks {
                 // stream data
-                tx.unbounded_send(data.clone());
+                tx.unbounded_send(data.clone()).unwrap();
                 index += 1;
             }
             else if !ended {
                 ended = true;
                 // end
-                tx.unbounded_send(vec![2, 0]);
+                tx.unbounded_send(vec![2, 0]).unwrap();
             }
             Ok(())
         })

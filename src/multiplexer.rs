@@ -20,7 +20,7 @@ enum MessageType {
 
 type Message = Vec<u8>;
 type MessageRx = mpsc::UnboundedReceiver<Message>;
-type EventTx = mpsc::UnboundedSender<Message>;
+//type EventTx = mpsc::UnboundedSender<Message>;
 type Id = u8;
 
 
@@ -46,7 +46,7 @@ pub struct Receiver {
 
 impl Producer<Message> for Receiver {
     fn request(&mut self, num_items: usize) {
-        self.message_tx.unbounded_send(ProducerMessage::Request(num_items));
+        self.message_tx.unbounded_send(ProducerMessage::Request(num_items)).unwrap();
     }
 
     fn event_stream(&mut self) -> Option<ProducerEventRx<Message>> {
@@ -155,17 +155,17 @@ impl<T> InnerTask<T>
                 };
 
                 self.receiver_channels.insert(id, (message_rx, event_tx));
-                self.receivers_tx.unbounded_send(receiver);
+                self.receivers_tx.unbounded_send(receiver).unwrap();
             },
             StreamData => {
                 //println!("StreamData");
                 let (_, event_tx) = self.receiver_channels.get(&stream_id).expect("invalid stream id");
-                event_tx.unbounded_send(ProducerEvent::Data(data.to_vec()));
+                event_tx.unbounded_send(ProducerEvent::Data(data.to_vec())).unwrap();
             },
             StreamEnd => {
                 println!("StreamEnd");
                 let (_, event_tx) = self.receiver_channels.get(&stream_id).expect("invalid stream id");
-                event_tx.unbounded_send(ProducerEvent::End);
+                event_tx.unbounded_send(ProducerEvent::End).unwrap();
             },
             TerminateSender => {
                 println!("TerminateSender");
@@ -241,7 +241,7 @@ mod tests {
     impl TestTransport {
         fn new() -> TestTransport {
 
-            let (message_tx, message_rx) = mpsc::unbounded::<Message>();
+            let (_message_tx, message_rx) = mpsc::unbounded::<Message>();
 
             TestTransport {
                 message_rx: Some(message_rx),
@@ -250,7 +250,7 @@ mod tests {
     }
 
     impl Transport for TestTransport {
-        fn send(&mut self, message: Message) {
+        fn send(&mut self, _message: Message) {
             //self.socket.send(message);
         }
 

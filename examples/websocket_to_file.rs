@@ -1,6 +1,6 @@
 use omnistreams::{
     Producer, Transport, EventEmitter, Acceptor, WebSocketAcceptorBuilder,
-    Multiplexer, WriteAdapter, MapConduit
+    Multiplexer, WriteAdapter 
 };
 use futures::future::lazy;
 use tokio::prelude::*;

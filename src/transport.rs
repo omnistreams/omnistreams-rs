@@ -1,14 +1,10 @@
 use futures::sync::mpsc;
-use std::thread;
 use websocket::r#async::Server;
 use websocket::server::InvalidConnection;
-use websocket::message::{Message as WsMessage, OwnedMessage};
-use websocket::codec::ws::MessageCodec;
+use websocket::message::{OwnedMessage};
 use websocket::result::WebSocketError;
 use tokio::reactor::Handle;
-use tokio::codec::{Framed};
-use tokio::net::TcpStream;
-use futures::stream::{Stream, SplitSink};
+use futures::stream::{Stream};
 use futures::sink::{Sink};
 use futures::future::{Future};
 use std::fmt::Debug;
@@ -29,7 +25,6 @@ pub trait Acceptor {
 }
 
 pub struct WebSocketTransport {
-    //sink: SplitSink<Framed<TcpStream, MessageCodec<OwnedMessage>>>,
     in_rx: Option<MessageRx>,
     out_tx: MessageTx,
 }
@@ -43,8 +38,8 @@ pub struct WebSocketAcceptorBuilder {
     port: u16,
 }
 
-pub struct WebSocketInitiator {
-}
+//pub struct WebSocketInitiator {
+//}
 
 impl WebSocketTransport {
     //pub fn new(rx: MessageRx, sink: SplitSink<OwnedMessage>) -> WebSocketTransport {
@@ -117,7 +112,7 @@ impl WebSocketAcceptorBuilder {
                         let (in_tx, in_rx) = mpsc::unbounded::<Message>();
                         let (out_tx, out_rx) = mpsc::unbounded::<Message>();
 
-                        let sink_f = sink.send_all(out_rx.map_err(|e| {
+                        let sink_f = sink.send_all(out_rx.map_err(|_e| {
                             WebSocketError::NoDataAvailable
                         })
                         .map(|m| {
@@ -185,12 +180,12 @@ where
 	);
 }
 
-impl WebSocketInitiator {
-    pub fn new() -> WebSocketInitiator {
-        WebSocketInitiator {
-        }
-    }
-}
+//impl WebSocketInitiator {
+//    pub fn new() -> WebSocketInitiator {
+//        WebSocketInitiator {
+//        }
+//    }
+//}
 
 #[cfg(test)]
 mod tests {
