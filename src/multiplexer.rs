@@ -18,6 +18,11 @@ enum MessageType {
     ControlMessage = 5,
 }
 
+enum MultiplexerMessage {
+    SendControlMessage(Message),
+    //CreateConduit,
+}
+
 type Message = Vec<u8>;
 type MessageRx = mpsc::UnboundedReceiver<Message>;
 //type EventTx = mpsc::UnboundedSender<Message>;
@@ -26,6 +31,7 @@ type Id = u8;
 
 pub struct Multiplexer {
     receivers_rx: Option<mpsc::UnboundedReceiver<Receiver>>,
+    message_tx: mpsc::UnboundedSender<MultiplexerMessage>,
 }
 
 struct InnerTask<T> 
@@ -33,10 +39,11 @@ struct InnerTask<T>
 {
     transport: T,
     transport_done: bool,
-    message_rx: MessageRx,
+    transport_message_rx: MessageRx,
     receivers_tx: mpsc::UnboundedSender<Receiver>,
     receiver_channels: HashMap<Id, (ProducerMessageRx, ProducerEventTx<Message>)>,
     next_stream_id: Id,
+    message_rx: mpsc::UnboundedReceiver<MultiplexerMessage>,
 }
 
 pub struct Receiver {
@@ -57,23 +64,31 @@ impl Producer<Message> for Receiver {
 impl Multiplexer {
     pub fn new<T: Transport + Send + 'static>(mut transport: T) -> Multiplexer {
 
-        let message_rx = transport.messages().expect("messages");
+        let transport_message_rx = transport.messages().expect("Multiplexer new messages");
         let (receivers_tx, receivers_rx) = mpsc::unbounded::<Receiver>();
+        let (message_tx, message_rx) = mpsc::unbounded::<MultiplexerMessage>();
 
         let inner = InnerTask {
             transport,
             transport_done: false,
-            message_rx,
+            transport_message_rx,
             receivers_tx,
             receiver_channels: HashMap::new(),
             next_stream_id: 0,
+            message_rx,
         };
 
         tokio::spawn(inner.map_err(|_| {}));
 
         Multiplexer {
             receivers_rx: Some(receivers_rx),
+            message_tx,
         }
+    }
+
+    pub fn send_control_message(&mut self, message: Message) {
+        self.message_tx.unbounded_send(MultiplexerMessage::SendControlMessage(message))
+            .expect("Multiplexer.send_control_message");
     }
 
 }
@@ -87,6 +102,32 @@ impl EventEmitter<Receiver> for Multiplexer {
 impl<T> InnerTask<T> 
     where T: Transport + Send,
 {
+    fn process_messages(&mut self) {
+        loop {
+            match self.message_rx.poll().unwrap() {
+                Async::Ready(Some(message)) => {
+                    match message {
+                        MultiplexerMessage::SendControlMessage(control_message) => {
+                            println!("control message: {:?}", control_message);
+                            let mut message = vec![ControlMessage as u8];
+                            message.extend(control_message);
+                            self.transport.send(message);
+                        }
+                        //MultiplexerMessage::CreateConduit => {
+                        //    println!("create conduit");
+                        //}
+                    }
+                },
+                Async::Ready(None) => {
+                    break;
+                },
+                Async::NotReady => {
+                    break;
+                },
+            }
+        }
+    }
+
     fn process_transport_messages(&mut self) {
 
         if self.transport_done {
@@ -94,7 +135,7 @@ impl<T> InnerTask<T>
         }
 
         loop {
-            match self.message_rx.poll().unwrap() {
+            match self.transport_message_rx.poll().unwrap() {
                 Async::Ready(message) => {
                     match message {
                         Some(m) => {
@@ -114,9 +155,9 @@ impl<T> InnerTask<T>
     }
 
     fn process_receiver_messages(&mut self) {
-        for (stream_id, (message_rx, _event_tx)) in self.receiver_channels.iter_mut() {
+        for (stream_id, (transport_message_rx, _event_tx)) in self.receiver_channels.iter_mut() {
             loop {
-                match message_rx.poll().unwrap() {
+                match transport_message_rx.poll().unwrap() {
                     Async::Ready(Some(message)) => {
                         match message {
                             ProducerMessage::Request(num_items) => {
@@ -146,7 +187,7 @@ impl<T> InnerTask<T>
             CreateReceiver => {
                 println!("CreateReceiver: {}", stream_id);
                 let id = self.next_stream_id();
-                let (message_tx, message_rx) = mpsc::unbounded::<ProducerMessage>();
+                let (message_tx, transport_message_rx) = mpsc::unbounded::<ProducerMessage>();
                 let (event_tx, event_rx) = mpsc::unbounded::<ProducerEvent<Message>>();
 
                 let receiver = Receiver {
@@ -154,7 +195,7 @@ impl<T> InnerTask<T>
                     event_rx: Some(event_rx),
                 };
 
-                self.receiver_channels.insert(id, (message_rx, event_tx));
+                self.receiver_channels.insert(id, (transport_message_rx, event_tx));
                 self.receivers_tx.unbounded_send(receiver).unwrap();
             },
             StreamData => {
@@ -196,6 +237,7 @@ impl<T> Future for InnerTask<T>
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.process_messages();
         self.process_transport_messages();
         self.process_receiver_messages();
 
