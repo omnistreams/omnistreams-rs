@@ -1,6 +1,6 @@
 use omnistreams::{
     Producer, Transport, EventEmitter, Acceptor, WebSocketAcceptorBuilder,
-    Multiplexer
+    Multiplexer, MultiplexerEvent,
 };
 use futures::future::lazy;
 use tokio::prelude::*;
@@ -31,8 +31,14 @@ fn handle_transport<T: Transport + Send + 'static>(transport: T) {
 
     let events = mux.events().unwrap();
 
-    tokio::spawn(events.for_each(|producer| {
-        handle_producer(producer);
+    tokio::spawn(events.for_each(|event| {
+        match event {
+            MultiplexerEvent::Conduit(producer) => {
+                handle_producer(producer);
+            },
+            _ => {
+            },
+        }
         Ok(())
     })
     .map_err(|e| {

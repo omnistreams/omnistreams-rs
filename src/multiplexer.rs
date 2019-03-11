@@ -23,14 +23,21 @@ enum MultiplexerMessage {
     //CreateConduit,
 }
 
+pub enum MultiplexerEvent<P: Producer<Message>> {
+    Conduit(P),
+    ControlMessage(Message),
+}
+
 type Message = Vec<u8>;
 type MessageRx = mpsc::UnboundedReceiver<Message>;
 //type EventTx = mpsc::UnboundedSender<Message>;
 type Id = u8;
+type MultiplexerEventTx = mpsc::UnboundedSender<MultiplexerEvent<Receiver>>;
+type MultiplexerEventRx = mpsc::UnboundedReceiver<MultiplexerEvent<Receiver>>;
 
 
 pub struct Multiplexer {
-    receivers_rx: Option<mpsc::UnboundedReceiver<Receiver>>,
+    event_rx: Option<MultiplexerEventRx>,
     message_tx: mpsc::UnboundedSender<MultiplexerMessage>,
 }
 
@@ -40,7 +47,7 @@ struct InnerTask<T>
     transport: T,
     transport_done: bool,
     transport_message_rx: MessageRx,
-    receivers_tx: mpsc::UnboundedSender<Receiver>,
+    event_tx: MultiplexerEventTx,
     receiver_channels: HashMap<Id, (ProducerMessageRx, ProducerEventTx<Message>)>,
     next_stream_id: Id,
     message_rx: mpsc::UnboundedReceiver<MultiplexerMessage>,
@@ -65,14 +72,14 @@ impl Multiplexer {
     pub fn new<T: Transport + Send + 'static>(mut transport: T) -> Multiplexer {
 
         let transport_message_rx = transport.messages().expect("Multiplexer new messages");
-        let (receivers_tx, receivers_rx) = mpsc::unbounded::<Receiver>();
         let (message_tx, message_rx) = mpsc::unbounded::<MultiplexerMessage>();
+        let (event_tx, event_rx) = mpsc::unbounded();
 
         let inner = InnerTask {
             transport,
             transport_done: false,
             transport_message_rx,
-            receivers_tx,
+            event_tx,
             receiver_channels: HashMap::new(),
             next_stream_id: 0,
             message_rx,
@@ -81,7 +88,7 @@ impl Multiplexer {
         tokio::spawn(inner.map_err(|_| {}));
 
         Multiplexer {
-            receivers_rx: Some(receivers_rx),
+            event_rx: Some(event_rx),
             message_tx,
         }
     }
@@ -90,12 +97,11 @@ impl Multiplexer {
         self.message_tx.unbounded_send(MultiplexerMessage::SendControlMessage(message))
             .expect("Multiplexer.send_control_message");
     }
-
 }
 
-impl EventEmitter<Receiver> for Multiplexer {
-    fn events(&mut self) -> Option<mpsc::UnboundedReceiver<Receiver>> {
-        Option::take(&mut self.receivers_rx)
+impl EventEmitter<MultiplexerEvent<Receiver>> for Multiplexer {
+    fn events(&mut self) -> Option<MultiplexerEventRx> {
+        Option::take(&mut self.event_rx)
     }
 }
 
@@ -196,7 +202,7 @@ impl<T> InnerTask<T>
                 };
 
                 self.receiver_channels.insert(id, (transport_message_rx, event_tx));
-                self.receivers_tx.unbounded_send(receiver).unwrap();
+                self.event_tx.unbounded_send(MultiplexerEvent::Conduit(receiver)).unwrap();
             },
             StreamData => {
                 //println!("StreamData");
@@ -216,6 +222,7 @@ impl<T> InnerTask<T>
             },
             ControlMessage => {
                 println!("ControlMessage");
+                self.event_tx.unbounded_send(MultiplexerEvent::ControlMessage(data.to_vec())).unwrap();
             },
         }
     }

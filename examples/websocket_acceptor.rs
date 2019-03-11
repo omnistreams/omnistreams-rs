@@ -12,7 +12,6 @@ fn main() {
         let transports = acceptor.transports().expect("no transports");
 
         tokio::spawn(transports.for_each(|transport| {
-            println!("{:?}", transport);
             Ok(())
         })
         .map_err(|e| {

@@ -13,7 +13,7 @@ pub use self::write_adapter::WriteAdapter;
 pub use self::range_producer::{RangeProducer, RangeProducerBuilder};
 pub use self::map_conduit::MapConduit;
 pub use self::transport::{Transport, Acceptor, WebSocketTransport, WebSocketAcceptorBuilder};
-pub use self::multiplexer::Multiplexer;
+pub use self::multiplexer::{Multiplexer, MultiplexerEvent};
 
 
 type ConsumerMessageRx<T> = mpsc::UnboundedReceiver<ConsumerMessage<T>>;
