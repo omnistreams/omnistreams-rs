@@ -24,7 +24,7 @@ enum MultiplexerMessage {
 }
 
 pub enum MultiplexerEvent<P: Producer<Message>> {
-    Conduit(P),
+    Conduit(P, Message),
     ControlMessage(Message),
 }
 
@@ -202,7 +202,7 @@ impl<T> InnerTask<T>
                 };
 
                 self.receiver_channels.insert(id, (transport_message_rx, event_tx));
-                self.event_tx.unbounded_send(MultiplexerEvent::Conduit(receiver)).unwrap();
+                self.event_tx.unbounded_send(MultiplexerEvent::Conduit(receiver, data.to_vec())).unwrap();
             },
             StreamData => {
                 //println!("StreamData");
