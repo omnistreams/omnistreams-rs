@@ -60,7 +60,14 @@ pub struct Receiver {
 
 impl Producer<Message> for Receiver {
     fn request(&mut self, num_items: usize) {
-        self.message_tx.unbounded_send(ProducerMessage::Request(num_items)).unwrap();
+        match self.message_tx.unbounded_send(ProducerMessage::Request(num_items)) {
+            Ok(_) => {
+            }
+            Err(_) => {
+                // TODO: make sure this is safe to ignore. Sometimes happens after the receiver channels are
+                // dropped in StreamEnd.
+            }
+        }
     }
 
     fn event_stream(&mut self) -> Option<ProducerEventRx<Message>> {
@@ -211,7 +218,7 @@ impl<T> InnerTask<T>
             },
             StreamEnd => {
                 println!("StreamEnd");
-                let (_, event_tx) = self.receiver_channels.get(&stream_id).expect("invalid stream id");
+                let (_, event_tx) = self.receiver_channels.remove(&stream_id).expect("invalid stream id");
                 event_tx.unbounded_send(ProducerEvent::End).unwrap();
             },
             TerminateSender => {
