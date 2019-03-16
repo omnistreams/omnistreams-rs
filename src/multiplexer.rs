@@ -181,6 +181,9 @@ impl<T> InnerTask<T>
     }
 
     fn process_receiver_messages(&mut self) {
+
+        let mut cancel_list = Vec::new();
+
         for (stream_id, receiver_manager) in self.receiver_managers.iter_mut() {
             loop {
                 match receiver_manager.message_rx.poll().unwrap() {
@@ -191,7 +194,7 @@ impl<T> InnerTask<T>
                                 self.transport.send(wire_message);
                             },
                             ProducerMessage::Cancel(_reason) => {
-                                println!("Cancel mux");
+                                cancel_list.push(stream_id.clone());
                                 let wire_message = vec![TerminateSender as u8, *stream_id];
                                 self.transport.send(wire_message);
                             },
@@ -205,6 +208,11 @@ impl<T> InnerTask<T>
                     },
                 }
             }
+        }
+
+        for stream_id in cancel_list {
+            println!("cancel: {}", stream_id);
+            self.receiver_managers.remove(&stream_id);
         }
     }
 
@@ -236,7 +244,8 @@ impl<T> InnerTask<T>
             },
             StreamData => {
                 //println!("StreamData");
-                let receiver_manager = self.receiver_managers.get(&stream_id).expect("invalid stream id");
+                let receiver_manager = self.receiver_managers.get(&stream_id)
+                    .expect("data for invalid stream id. maybe it was canceled");
                 receiver_manager.event_tx.unbounded_send(ProducerEvent::Data(data.to_vec())).unwrap();
             },
             StreamEnd => {
