@@ -14,7 +14,7 @@ enum MessageType {
     CreateReceiver = 0,
     StreamData = 1,
     StreamEnd = 2,
-    TerminateSender = 3,
+    CancelSender = 3,
     StreamRequestData = 4,
     ControlMessage = 5,
 }
@@ -195,7 +195,7 @@ impl<T> InnerTask<T>
                             },
                             ProducerMessage::Cancel(_reason) => {
                                 cancel_list.push(stream_id.clone());
-                                let wire_message = vec![TerminateSender as u8, *stream_id];
+                                let wire_message = vec![CancelSender as u8, *stream_id];
                                 self.transport.send(wire_message);
                             },
                         }
@@ -253,8 +253,8 @@ impl<T> InnerTask<T>
                 let receiver_manager = self.receiver_managers.remove(&stream_id).expect("invalid stream id");
                 receiver_manager.event_tx.unbounded_send(ProducerEvent::End).unwrap();
             },
-            TerminateSender => {
-                println!("TerminateSender");
+            CancelSender => {
+                println!("CancelSender");
             },
             StreamRequestData => {
                 println!("StreamRequestData");
@@ -304,7 +304,7 @@ impl From<u8> for MessageType {
             0 => CreateReceiver,
             1 => StreamData,
             2 => StreamEnd,
-            3 => TerminateSender,
+            3 => CancelSender,
             4 => StreamRequestData,
             5 => ControlMessage,
             _ => {
