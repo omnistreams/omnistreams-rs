@@ -244,9 +244,14 @@ impl<T> InnerTask<T>
             },
             StreamData => {
                 //println!("StreamData");
-                let receiver_manager = self.receiver_managers.get(&stream_id)
-                    .expect("data for invalid stream id. maybe it was canceled");
-                receiver_manager.event_tx.unbounded_send(ProducerEvent::Data(data.to_vec())).unwrap();
+                match self.receiver_managers.get(&stream_id) {
+                    Some(receiver_manager) => {
+                        receiver_manager.event_tx.unbounded_send(ProducerEvent::Data(data.to_vec())).unwrap();
+                    },
+                    None => {
+                        println!("data for invalid stream id. maybe it was canceled: {}", stream_id);
+                    }
+                }
             },
             StreamEnd => {
                 println!("StreamEnd");
