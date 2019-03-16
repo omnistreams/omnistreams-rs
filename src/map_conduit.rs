@@ -3,6 +3,7 @@ use super::{
     ConsumerMessage, ConsumerEvent, ProducerMessage, ProducerEvent,
     ConsumerMessageTx, ProducerMessageTx,
     ConsumerMessageRx, ConsumerEventTx, ProducerMessageRx, ProducerEventTx,
+    Streamer, CancelReason,
 };
 use std::marker::PhantomData;
 use futures::sync::mpsc;
@@ -174,6 +175,12 @@ impl<A, B> Consumer<A> for MapConduit<A, B> {
     }
 }
 
+impl<A, B> Streamer for MapConduit<A, B> {
+    fn cancel(&mut self, _reason: CancelReason) {
+        // TODO: implement cancel
+    }
+}
+
 impl<A, B> Producer<B> for MapConduit<A, B> {
     fn request(&mut self, num_items: usize) {
         self.producer.request(num_items);
@@ -206,6 +213,12 @@ impl<A> Consumer<A> for MapConsumer<A> {
 
     fn event_stream(&mut self) -> Option<ConsumerEventRx> {
         Option::take(&mut self.event_rx)
+    }
+}
+
+impl<B> Streamer for MapProducer<B> {
+    fn cancel(&mut self, _reason: CancelReason) {
+        // TODO: implement cancel
     }
 }
 

@@ -4,6 +4,7 @@ use futures::sync::mpsc;
 use super::{
     Producer, ProducerEvent, ProducerEventRx, ProducerEventTx,
     ProducerMessage, ProducerMessageRx, ProducerMessageTx,
+    Streamer, CancelReason,
 };
 
 type Item = i64;
@@ -62,6 +63,12 @@ impl RangeProducer {
             message_tx,
             event_rx: Some(event_rx),
         }
+    }
+}
+
+impl Streamer for RangeProducer {
+    fn cancel(&mut self, _reason: CancelReason) {
+        // TODO: implement cancel
     }
 }
 

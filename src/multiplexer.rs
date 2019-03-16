@@ -1,6 +1,7 @@
 use super::{
     EventEmitter, Transport, Producer, ProducerEventRx, ProducerMessage, ProducerMessageTx,
     ProducerEvent, ProducerEventTx, ProducerMessageRx,
+    Streamer, CancelReason,
 };
 use tokio::io;
 use tokio::prelude::*;
@@ -56,6 +57,12 @@ struct InnerTask<T>
 pub struct Receiver {
     message_tx: ProducerMessageTx,
     event_rx: Option<ProducerEventRx<Message>>,
+}
+
+impl Streamer for Receiver {
+    fn cancel(&mut self, _reason: CancelReason) {
+        // TODO: implement cancel
+    }
 }
 
 impl Producer<Message> for Receiver {

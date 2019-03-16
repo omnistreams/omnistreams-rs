@@ -34,13 +34,17 @@ pub trait EventEmitter<T> {
     fn events(&mut self) -> Option<mpsc::UnboundedReceiver<T>>;
 }
 
+pub trait Streamer {
+    fn cancel(&mut self, reason: CancelReason);
+}
+
 pub trait Consumer<T> {
     fn write(&self, data: T);
     fn end(&self);
     fn event_stream(&mut self) -> Option<ConsumerEventRx>;
 }
 
-pub trait Producer<T> {
+pub trait Producer<T> : Streamer {
     fn request(&mut self, num_items: usize);
     fn event_stream(&mut self) -> Option<ProducerEventRx<T>>;
     fn pipe<C>(self, consumer: C)
@@ -93,6 +97,11 @@ pub enum ConsumerEvent {
 pub enum ProducerEvent<T> {
     Data(T),
     End,
+}
+
+pub enum CancelReason {
+    Disconnected,
+    Other(String),
 }
 
 pub fn pipe<T, P, C>(mut producer: P, mut consumer: C)

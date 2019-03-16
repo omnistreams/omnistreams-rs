@@ -3,7 +3,8 @@ use tokio::prelude::*;
 use futures::sync::mpsc;
 use super::{
     Producer, ProducerEvent, ProducerEventRx, ProducerEventTx,
-    ProducerMessage, ProducerMessageRx, ProducerMessageTx,
+    ProducerMessage, ProducerMessageRx, ProducerMessageTx, Streamer,
+    CancelReason,
 };
 
 type Item = Vec<u8>;
@@ -49,6 +50,12 @@ impl ReadAdapter {
             message_tx,
             event_rx: Some(event_rx),
         }
+    }
+}
+
+impl Streamer for ReadAdapter {
+    fn cancel(&mut self, _reason: CancelReason) {
+        // TODO: implement cancel
     }
 }
 
