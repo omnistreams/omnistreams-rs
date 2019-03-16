@@ -60,8 +60,9 @@ pub struct Receiver {
 }
 
 impl Streamer for Receiver {
-    fn cancel(&mut self, _reason: CancelReason) {
-        // TODO: implement cancel
+    fn cancel(&mut self, reason: CancelReason) {
+        self.message_tx.unbounded_send(ProducerMessage::Cancel(reason))
+            .expect("Receiver.cancel message_tx");
     }
 }
 
@@ -183,7 +184,12 @@ impl<T> InnerTask<T>
                             ProducerMessage::Request(num_items) => {
                                 let wire_message = vec![StreamRequestData as u8, *stream_id, num_items as u8];
                                 self.transport.send(wire_message);
-                            }
+                            },
+                            ProducerMessage::Cancel(_reason) => {
+                                println!("Cancel mux");
+                                let wire_message = vec![TerminateSender as u8, *stream_id];
+                                self.transport.send(wire_message);
+                            },
                         }
                     },
                     Async::Ready(None) => {

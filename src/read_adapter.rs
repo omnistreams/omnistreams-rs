@@ -108,6 +108,10 @@ impl<T, U> Future for InnerTask<T, U>
                         Async::Ready(Some(ProducerMessage::Request(num_items))) => {
                             self.demand += num_items;
                         },
+                        Async::Ready(Some(ProducerMessage::Cancel(_reason))) => {
+                            // TODO: implement
+                            panic!("Cancel ReadAdapter");
+                        },
                         Async::Ready(None) => {
                             return Ok(Async::Ready(()));
                         },

@@ -126,6 +126,10 @@ impl Future for InnerTask {
                         self.demand -= 1;
                     }
                 },
+                Ok(Async::Ready(Some(ProducerMessage::Cancel(_reason)))) => {
+                    // TODO: implement
+                    panic!("Cancel RangeProducer");
+                },
                 Ok(Async::Ready(None)) => {
                     return Ok(Async::Ready(()));
                 },

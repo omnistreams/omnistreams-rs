@@ -86,6 +86,7 @@ pub enum ConsumerMessage<T> {
 #[derive(Debug)]
 pub enum ProducerMessage {
     Request(usize),
+    Cancel(CancelReason),
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -99,6 +100,7 @@ pub enum ProducerEvent<T> {
     End,
 }
 
+#[derive(Debug)]
 pub enum CancelReason {
     Disconnected,
     Other(String),

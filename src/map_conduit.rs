@@ -54,6 +54,10 @@ impl<F, A, B> InnerTask<F, A, B>
                             // just forward the request to the consumer end
                             (&self.c_event_tx).unbounded_send(ConsumerEvent::Request(n)).unwrap();
                         },
+                        Some(ProducerMessage::Cancel(_reason)) => {
+                            // TODO: implement
+                            panic!("Cancel MapConduit");
+                        },
                         None => {
                             break;
                         }
