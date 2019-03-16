@@ -33,8 +33,8 @@ type Message = Vec<u8>;
 type MessageRx = mpsc::UnboundedReceiver<Message>;
 //type EventTx = mpsc::UnboundedSender<Message>;
 type Id = u8;
-type MultiplexerEventTx = mpsc::UnboundedSender<MultiplexerEvent<Receiver>>;
-type MultiplexerEventRx = mpsc::UnboundedReceiver<MultiplexerEvent<Receiver>>;
+type MultiplexerEventTx = mpsc::UnboundedSender<MultiplexerEvent<ReceiverProducer>>;
+type MultiplexerEventRx = mpsc::UnboundedReceiver<MultiplexerEvent<ReceiverProducer>>;
 
 
 pub struct Multiplexer {
@@ -49,24 +49,29 @@ struct InnerTask<T>
     transport_done: bool,
     transport_message_rx: MessageRx,
     event_tx: MultiplexerEventTx,
-    receiver_channels: HashMap<Id, (ProducerMessageRx, ProducerEventTx<Message>)>,
+    receiver_managers: HashMap<Id, ReceiverManager>,
     next_stream_id: Id,
     message_rx: mpsc::UnboundedReceiver<MultiplexerMessage>,
 }
 
-pub struct Receiver {
+pub struct ReceiverProducer {
     message_tx: ProducerMessageTx,
     event_rx: Option<ProducerEventRx<Message>>,
 }
 
-impl Streamer for Receiver {
+struct ReceiverManager {
+    event_tx: ProducerEventTx<Message>,
+    message_rx: ProducerMessageRx,
+}
+
+impl Streamer for ReceiverProducer {
     fn cancel(&mut self, reason: CancelReason) {
         self.message_tx.unbounded_send(ProducerMessage::Cancel(reason))
-            .expect("Receiver.cancel message_tx");
+            .expect("ReceiverProducer.cancel message_tx");
     }
 }
 
-impl Producer<Message> for Receiver {
+impl Producer<Message> for ReceiverProducer {
     fn request(&mut self, num_items: usize) {
         match self.message_tx.unbounded_send(ProducerMessage::Request(num_items)) {
             Ok(_) => {
@@ -95,7 +100,7 @@ impl Multiplexer {
             transport_done: false,
             transport_message_rx,
             event_tx,
-            receiver_channels: HashMap::new(),
+            receiver_managers: HashMap::new(),
             next_stream_id: 0,
             message_rx,
         };
@@ -114,7 +119,7 @@ impl Multiplexer {
     }
 }
 
-impl EventEmitter<MultiplexerEvent<Receiver>> for Multiplexer {
+impl EventEmitter<MultiplexerEvent<ReceiverProducer>> for Multiplexer {
     fn events(&mut self) -> Option<MultiplexerEventRx> {
         Option::take(&mut self.event_rx)
     }
@@ -176,9 +181,9 @@ impl<T> InnerTask<T>
     }
 
     fn process_receiver_messages(&mut self) {
-        for (stream_id, (transport_message_rx, _event_tx)) in self.receiver_channels.iter_mut() {
+        for (stream_id, receiver_manager) in self.receiver_managers.iter_mut() {
             loop {
-                match transport_message_rx.poll().unwrap() {
+                match receiver_manager.message_rx.poll().unwrap() {
                     Async::Ready(Some(message)) => {
                         match message {
                             ProducerMessage::Request(num_items) => {
@@ -216,23 +221,28 @@ impl<T> InnerTask<T>
                 let (message_tx, transport_message_rx) = mpsc::unbounded::<ProducerMessage>();
                 let (event_tx, event_rx) = mpsc::unbounded::<ProducerEvent<Message>>();
 
-                let receiver = Receiver {
+                let receiver = ReceiverProducer {
                     message_tx,
                     event_rx: Some(event_rx),
                 };
 
-                self.receiver_channels.insert(id, (transport_message_rx, event_tx));
+                let receiver_manager = ReceiverManager {
+                    event_tx,
+                    message_rx: transport_message_rx,
+                };
+
+                self.receiver_managers.insert(id, receiver_manager);
                 self.event_tx.unbounded_send(MultiplexerEvent::Conduit(receiver, data.to_vec())).unwrap();
             },
             StreamData => {
                 //println!("StreamData");
-                let (_, event_tx) = self.receiver_channels.get(&stream_id).expect("invalid stream id");
-                event_tx.unbounded_send(ProducerEvent::Data(data.to_vec())).unwrap();
+                let receiver_manager = self.receiver_managers.get(&stream_id).expect("invalid stream id");
+                receiver_manager.event_tx.unbounded_send(ProducerEvent::Data(data.to_vec())).unwrap();
             },
             StreamEnd => {
                 println!("StreamEnd");
-                let (_, event_tx) = self.receiver_channels.remove(&stream_id).expect("invalid stream id");
-                event_tx.unbounded_send(ProducerEvent::End).unwrap();
+                let receiver_manager = self.receiver_managers.remove(&stream_id).expect("invalid stream id");
+                receiver_manager.event_tx.unbounded_send(ProducerEvent::End).unwrap();
             },
             TerminateSender => {
                 println!("TerminateSender");
@@ -268,7 +278,7 @@ impl<T> Future for InnerTask<T>
         self.process_transport_messages();
         self.process_receiver_messages();
 
-        if self.transport_done && self.receiver_channels.len() == 0 {
+        if self.transport_done && self.receiver_managers.len() == 0 {
             println!("ready");
             Ok(Async::Ready(()))
         }
