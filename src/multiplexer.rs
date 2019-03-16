@@ -261,7 +261,7 @@ impl<T> InnerTask<T>
             },
             ControlMessage => {
                 println!("ControlMessage");
-                self.event_tx.unbounded_send(MultiplexerEvent::ControlMessage(data.to_vec())).unwrap();
+                self.event_tx.unbounded_send(MultiplexerEvent::ControlMessage(message[1..].to_vec())).unwrap();
             },
         }
     }
