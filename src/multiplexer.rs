@@ -6,7 +6,7 @@ use super::{
 use tokio::io;
 use tokio::prelude::*;
 use futures::sync::mpsc;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use self::MessageType::*;
 
@@ -50,7 +50,7 @@ struct InnerTask<T>
     transport_message_rx: MessageRx,
     event_tx: MultiplexerEventTx,
     receiver_managers: HashMap<Id, ReceiverManager>,
-    next_stream_id: Id,
+    available_stream_ids: VecDeque<u8>,
     message_rx: mpsc::UnboundedReceiver<MultiplexerMessage>,
 }
 
@@ -95,13 +95,18 @@ impl Multiplexer {
         let (message_tx, message_rx) = mpsc::unbounded::<MultiplexerMessage>();
         let (event_tx, event_rx) = mpsc::unbounded();
 
+        let mut available_stream_ids = VecDeque::new();
+        for i in 0..=255 {
+            available_stream_ids.push_back(i);
+        }
+
         let inner = InnerTask {
             transport,
             transport_done: false,
             transport_message_rx,
             event_tx,
             receiver_managers: HashMap::new(),
-            next_stream_id: 0,
+            available_stream_ids,
             message_rx,
         };
 
@@ -213,6 +218,7 @@ impl<T> InnerTask<T>
         for stream_id in cancel_list {
             println!("cancel: {}", stream_id);
             self.receiver_managers.remove(&stream_id);
+            self.available_stream_ids.push_back(stream_id);
         }
     }
 
@@ -240,6 +246,7 @@ impl<T> InnerTask<T>
                 };
 
                 self.receiver_managers.insert(id, receiver_manager);
+                println!("{:?}", self.available_stream_ids);
                 self.event_tx.unbounded_send(MultiplexerEvent::Conduit(receiver, data.to_vec())).unwrap();
             },
             StreamData => {
@@ -254,8 +261,9 @@ impl<T> InnerTask<T>
                 }
             },
             StreamEnd => {
-                println!("StreamEnd");
+                println!("StreamEnd: {}", stream_id);
                 let receiver_manager = self.receiver_managers.remove(&stream_id).expect("invalid stream id");
+                self.available_stream_ids.push_back(stream_id);
                 receiver_manager.event_tx.unbounded_send(ProducerEvent::End).unwrap();
             },
             CancelSender => {
@@ -272,12 +280,7 @@ impl<T> InnerTask<T>
     }
 
     fn next_stream_id(&mut self) -> Id {
-        let id = self.next_stream_id;
-        self.next_stream_id += 1;
-        if self.next_stream_id == 255 {
-            panic!("out of stream ids");
-        }
-        id
+        self.available_stream_ids.pop_front().expect("out of stream ids")
     }
 }
 
