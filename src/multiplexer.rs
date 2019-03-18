@@ -66,8 +66,11 @@ struct ReceiverManager {
 
 impl Streamer for ReceiverProducer {
     fn cancel(&mut self, reason: CancelReason) {
-        self.message_tx.unbounded_send(ProducerMessage::Cancel(reason))
-            .expect("ReceiverProducer.cancel message_tx");
+        match self.message_tx.unbounded_send(ProducerMessage::Cancel(reason)) {
+            Ok(_) => (),
+            // Already ended upstream and channel dropped, so just ignore 
+            Err(_) => (),
+        }
     }
 }
 
@@ -76,9 +79,8 @@ impl Producer<Message> for ReceiverProducer {
         match self.message_tx.unbounded_send(ProducerMessage::Request(num_items)) {
             Ok(_) => {
             }
+            // Already ended upstream and channel dropped, so just ignore 
             Err(_) => {
-                // TODO: make sure this is safe to ignore. Sometimes happens after the receiver channels are
-                // dropped in StreamEnd.
             }
         }
     }

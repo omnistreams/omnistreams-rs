@@ -1,8 +1,9 @@
+use std::fmt::Debug;
 use tokio::prelude::*;
 use futures::sync::mpsc;
 use super::{
     Consumer, ConsumerMessage, ConsumerEvent, ConsumerEventRx, ConsumerEventTx, ConsumerMessageRx,
-    ConsumerMessageTx
+    ConsumerMessageTx, CancelReason
 };
 
 type Message = Vec<u8>;
@@ -24,7 +25,7 @@ pub struct SinkAdapter {
 
 struct InnerTask<S, E>
     where S: Sink<SinkItem=Message, SinkError=E> + Send + 'static,
-          E: 'static,
+          E: 'static + Debug,
 {
     sink: S,
     message_rx: ConsumerMessageRx<Message>,
@@ -35,7 +36,7 @@ struct InnerTask<S, E>
 
 impl<S, E> InnerTask<S, E>
     where S: Sink<SinkItem=Message, SinkError=E> + Send + 'static,
-          E: 'static,
+          E: 'static + Debug,
 {
     fn new(sink: S, message_rx: ConsumerMessageRx<Message>, event_tx: ConsumerEventTx) -> Self {
 
@@ -60,7 +61,8 @@ impl<S, E> InnerTask<S, E>
             Ok(AsyncSink::NotReady(data)) => {
                 self.buffered = Some(data);
             },
-            Err(_) => {
+            Err(_e) => {
+                (&self.event_tx).unbounded_send(ConsumerEvent::Cancellation(CancelReason::Disconnected)).unwrap();
             },
         }
     }
@@ -68,7 +70,7 @@ impl<S, E> InnerTask<S, E>
 
 impl<S, E> Future for InnerTask<S, E>
     where S: Sink<SinkItem=Message, SinkError=E> + Send + 'static,
-          E: 'static,
+          E: 'static + Debug,
 {
     type Item = ();
     type Error = E;
@@ -85,7 +87,8 @@ impl<S, E> Future for InnerTask<S, E>
                     },
                     Ok(Async::NotReady) => {
                     },
-                    Err(_) => {
+                    Err(e) => {
+                        eprintln!("SinkAdapter poll err: {:?}", e);
                     },
                 }
             },
@@ -123,7 +126,7 @@ impl<S, E> Future for InnerTask<S, E>
 impl SinkAdapter {
     pub fn new<S, E>(sink: S) -> Self
         where S: Sink<SinkItem=Message, SinkError=E> + Send + 'static,
-              E: 'static,
+              E: 'static + Debug,
     {
         let (message_tx, message_rx) = mpsc::unbounded::<ConsumerMessage<Message>>();
         let (event_tx, event_rx) = mpsc::unbounded::<ConsumerEvent>();

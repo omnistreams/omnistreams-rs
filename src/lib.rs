@@ -94,6 +94,7 @@ pub enum ProducerMessage {
 #[derive(PartialEq, Clone, Debug)]
 pub enum ConsumerEvent {
     Request(usize),
+    Cancellation(CancelReason),
 }
 
 #[derive(Debug)]
@@ -102,7 +103,7 @@ pub enum ProducerEvent<T> {
     End,
 }
 
-#[derive(Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum CancelReason {
     Disconnected,
     Other(String),
@@ -135,6 +136,9 @@ pub fn pipe<T, P, C>(mut producer: P, mut consumer: C)
         match event {
             ConsumerEvent::Request(num_items) => {
                 producer.request(num_items);
+            },
+            ConsumerEvent::Cancellation(reason) => {
+                producer.cancel(reason);
             },
         }
         
