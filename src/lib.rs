@@ -3,6 +3,7 @@ use tokio::prelude::*;
 
 mod read_adapter;
 mod write_adapter;
+mod sink_adapter;
 mod map_conduit;
 mod range_producer;
 mod transport;
@@ -10,6 +11,7 @@ mod multiplexer;
 
 pub use self::read_adapter::ReadAdapter;
 pub use self::write_adapter::WriteAdapter;
+pub use self::sink_adapter::SinkAdapter;
 pub use self::range_producer::{RangeProducer, RangeProducerBuilder};
 pub use self::map_conduit::MapConduit;
 pub use self::transport::{Transport, Acceptor, WebSocketTransport, WebSocketAcceptorBuilder};
