@@ -49,7 +49,7 @@ pub trait Consumer<T> {
 pub trait Producer<T> : Streamer {
     fn request(&mut self, num_items: usize);
     fn event_stream(&mut self) -> Option<ProducerEventRx<T>>;
-    fn pipe<C>(self, consumer: C)
+    fn pipe_into<C>(self, consumer: C)
         where Self: Sized + Send + 'static,
               C: Consumer<T> + Sized + Send + 'static,
               T: Send + 'static,
@@ -57,7 +57,7 @@ pub trait Producer<T> : Streamer {
         pipe(self, consumer);
     }
 
-    fn pipe_conduit<C, U>(self, conduit: C) -> C::ConcreteProducer
+    fn pipe_through<C, U>(self, conduit: C) -> C::ConcreteProducer
         where Self: Sized + Send + 'static,
               C: Conduit<T, U> + Sized + Send + 'static,
               T: Send + 'static,
