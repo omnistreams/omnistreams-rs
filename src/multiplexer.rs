@@ -141,7 +141,6 @@ impl<T> InnerTask<T>
                 Async::Ready(Some(message)) => {
                     match message {
                         MultiplexerMessage::SendControlMessage(control_message) => {
-                            println!("control message: {:?}", control_message);
                             let mut message = vec![ControlMessage as u8];
                             message.extend(control_message);
                             self.transport.send(message);
@@ -218,7 +217,7 @@ impl<T> InnerTask<T>
         }
 
         for stream_id in cancel_list {
-            println!("cancel: {}", stream_id);
+            println!("Cancel: {}", stream_id);
             self.receiver_managers.remove(&stream_id);
             self.available_stream_ids.push_back(stream_id);
         }
@@ -248,7 +247,6 @@ impl<T> InnerTask<T>
                 };
 
                 self.receiver_managers.insert(id, receiver_manager);
-                println!("{:?}", self.available_stream_ids);
                 self.event_tx.unbounded_send(MultiplexerEvent::Conduit(receiver, data.to_vec())).unwrap();
             },
             StreamData => {
@@ -298,7 +296,6 @@ impl<T> Future for InnerTask<T>
         self.process_receiver_messages();
 
         if self.transport_done && self.receiver_managers.len() == 0 {
-            println!("ready");
             Ok(Async::Ready(()))
         }
         else {
