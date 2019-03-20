@@ -32,7 +32,7 @@ pub struct MapProducer<B> {
 }
 
 struct InnerTask<F, A, B>
-    where F: Fn(A) -> B + Send
+    where F: FnMut(A) -> B + Send
 {
     f: F,
     c_message_rx: ConsumerMessageRx<A>,
@@ -43,7 +43,7 @@ struct InnerTask<F, A, B>
 }
 
 impl<F, A, B> InnerTask<F, A, B>
-    where F: Fn(A) -> B + Send
+    where F: FnMut(A) -> B + Send
 {
     fn process_producer_messages(&mut self) {
         loop {
@@ -98,7 +98,7 @@ impl<F, A, B> InnerTask<F, A, B>
 }
 
 impl<F, A, B> Future for InnerTask<F, A, B>
-    where F: Fn(A) -> B + Send
+    where F: FnMut(A) -> B + Send
 {
     type Item = ();
     type Error = io::Error;
@@ -125,7 +125,7 @@ impl<A, B> MapConduit<A, B>
     where A: Send + 'static,
           B: Send + 'static,
 {
-    pub fn new<F: Fn(A) -> B + Send + 'static>(f: F) -> MapConduit<A, B> {
+    pub fn new<F: FnMut(A) -> B + Send + 'static>(f: F) -> MapConduit<A, B> {
 
         let (c_message_tx, c_message_rx) = mpsc::unbounded::<ConsumerMessage<A>>();
         let (c_event_tx, c_event_rx) = mpsc::unbounded::<ConsumerEvent>();
