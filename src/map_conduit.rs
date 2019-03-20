@@ -54,9 +54,8 @@ impl<F, A, B> InnerTask<F, A, B>
                             // just forward the request to the consumer end
                             (&self.c_event_tx).unbounded_send(ConsumerEvent::Request(n)).unwrap();
                         },
-                        Some(ProducerMessage::Cancel(_reason)) => {
-                            // TODO: implement
-                            panic!("Cancel MapConduit");
+                        Some(ProducerMessage::Cancel(reason)) => {
+                            (&self.c_event_tx).unbounded_send(ConsumerEvent::Cancellation(reason)).unwrap();
                         },
                         None => {
                             break;
@@ -221,8 +220,15 @@ impl<A> Consumer<A> for MapConsumer<A> {
 }
 
 impl<B> Streamer for MapProducer<B> {
-    fn cancel(&mut self, _reason: CancelReason) {
-        // TODO: implement cancel
+    fn cancel(&mut self, reason: CancelReason) {
+        match (&self.message_tx).unbounded_send(ProducerMessage::Cancel(reason)) {
+            Ok(_) => {
+            },
+            Err(_e) => {
+                // TODO: properly handle
+                //eprintln!("{:?}", e);
+            }
+        }
     }
 }
 

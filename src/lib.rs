@@ -13,18 +13,19 @@ pub use self::read_adapter::ReadAdapter;
 pub use self::write_adapter::WriteAdapter;
 pub use self::sink_adapter::SinkAdapter;
 pub use self::range_producer::{RangeProducer, RangeProducerBuilder};
-pub use self::map_conduit::MapConduit;
+pub use self::map_conduit::{MapConduit, MapConsumer, MapProducer};
 pub use self::transport::{Transport, Acceptor, WebSocketTransport, WebSocketAcceptorBuilder};
 pub use self::multiplexer::{Multiplexer, MultiplexerEvent};
 
+pub type Message = Vec<u8>;
 
 type ConsumerMessageRx<T> = mpsc::UnboundedReceiver<ConsumerMessage<T>>;
 type ConsumerMessageTx<T> = mpsc::UnboundedSender<ConsumerMessage<T>>;
 
-type ConsumerEventRx = mpsc::UnboundedReceiver<ConsumerEvent>;
+pub type ConsumerEventRx = mpsc::UnboundedReceiver<ConsumerEvent>;
 type ConsumerEventTx = mpsc::UnboundedSender<ConsumerEvent>;
 
-type ProducerEventRx<T> = mpsc::UnboundedReceiver<ProducerEvent<T>>;
+pub type ProducerEventRx<T> = mpsc::UnboundedReceiver<ProducerEvent<T>>;
 type ProducerEventTx<T> = mpsc::UnboundedSender<ProducerEvent<T>>;
 
 type ProducerMessageRx = mpsc::UnboundedReceiver<ProducerMessage>;
@@ -54,7 +55,7 @@ pub trait Producer<T> : Streamer {
               C: Consumer<T> + Sized + Send + 'static,
               T: Send + 'static,
     {
-        pipe(self, consumer);
+        pipe_into(self, consumer);
     }
 
     fn pipe_through<C, U>(self, conduit: C) -> C::ConcreteProducer
@@ -65,7 +66,7 @@ pub trait Producer<T> : Streamer {
               C::ConcreteConsumer: Send,
     {
         let (consumer, producer) = conduit.split();
-        pipe(self, consumer);
+        pipe_into(self, consumer);
 
         producer
     }
@@ -109,7 +110,7 @@ pub enum CancelReason {
     Other(String),
 }
 
-pub fn pipe<T, P, C>(mut producer: P, mut consumer: C)
+pub fn pipe_into<T, P, C>(mut producer: P, mut consumer: C)
     where T: Send + 'static,
           P: Producer<T> + Send + 'static,
           C: Consumer<T> + Send + 'static
