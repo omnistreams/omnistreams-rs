@@ -18,17 +18,22 @@ pub use self::transport::{Transport, Acceptor, WebSocketTransport, WebSocketAcce
 pub use self::multiplexer::{Multiplexer, MultiplexerEvent};
 
 
+pub type Message = Vec<u8>;
+
 type ConsumerMessageRx<T> = mpsc::UnboundedReceiver<ConsumerMessage<T>>;
 type ConsumerMessageTx<T> = mpsc::UnboundedSender<ConsumerMessage<T>>;
 
-type ConsumerEventRx = mpsc::UnboundedReceiver<ConsumerEvent>;
+pub type ConsumerEventRx = mpsc::UnboundedReceiver<ConsumerEvent>;
 type ConsumerEventTx = mpsc::UnboundedSender<ConsumerEvent>;
 
-type ProducerEventRx<T> = mpsc::UnboundedReceiver<ProducerEvent<T>>;
+pub type ProducerEventRx<T> = mpsc::UnboundedReceiver<ProducerEvent<T>>;
 type ProducerEventTx<T> = mpsc::UnboundedSender<ProducerEvent<T>>;
 
 type ProducerMessageRx = mpsc::UnboundedReceiver<ProducerMessage>;
 type ProducerMessageTx = mpsc::UnboundedSender<ProducerMessage>;
+
+pub type ConduitConsumer<T> = Box<dyn Consumer<T> + Send>;
+pub type ConduitProducer<T> = Box<dyn Producer<T> + Send>;
 
 
 // TODO: maybe add a default method for taking the events object
@@ -49,34 +54,28 @@ pub trait Consumer<T> {
 pub trait Producer<T> : Streamer {
     fn request(&mut self, num_items: usize);
     fn event_stream(&mut self) -> Option<ProducerEventRx<T>>;
-    fn pipe_into<C>(self, consumer: C)
+    fn pipe_into(self, consumer: Box<dyn Consumer<T> + Send>)
         where Self: Sized + Send + 'static,
-              C: Consumer<T> + Sized + Send + 'static,
               T: Send + 'static,
     {
-        pipe(self, consumer);
+        pipe(Box::new(self), consumer);
     }
 
-    fn pipe_through<C, U>(self, conduit: C) -> C::ConcreteProducer
+    fn pipe_through<C, U>(self, conduit: C) -> ConduitProducer<U>
         where Self: Sized + Send + 'static,
               C: Conduit<T, U> + Sized + Send + 'static,
               T: Send + 'static,
               U: Send + 'static,
-              C::ConcreteConsumer: Send,
     {
         let (consumer, producer) = conduit.split();
-        pipe(self, consumer);
+        pipe(Box::new(self), consumer);
 
         producer
     }
 }
 
 pub trait Conduit<A, B> : Consumer<A> + Producer<B> {
-    
-    type ConcreteConsumer: Consumer<A>;
-    type ConcreteProducer: Producer<B>;
-
-    fn split(self) -> (Self::ConcreteConsumer, Self::ConcreteProducer);
+    fn split(self) -> (ConduitConsumer<A>, ConduitProducer<B>);
 }
 
 #[derive(Debug)]
@@ -109,10 +108,8 @@ pub enum CancelReason {
     Other(String),
 }
 
-pub fn pipe<T, P, C>(mut producer: P, mut consumer: C)
+pub fn pipe<T>(mut producer: Box<dyn Producer<T> + Send>, mut consumer: Box<dyn Consumer<T> + Send>)
     where T: Send + 'static,
-          P: Producer<T> + Send + 'static,
-          C: Consumer<T> + Send + 'static
 {
     let producer_events = producer.event_stream().unwrap();
     let consumer_events = consumer.event_stream().expect("no event stream");

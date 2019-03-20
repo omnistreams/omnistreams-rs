@@ -3,7 +3,7 @@ use super::{
     ConsumerMessage, ConsumerEvent, ProducerMessage, ProducerEvent,
     ConsumerMessageTx, ProducerMessageTx,
     ConsumerMessageRx, ConsumerEventTx, ProducerMessageRx, ProducerEventTx,
-    Streamer, CancelReason,
+    Streamer, CancelReason, ConduitConsumer, ConduitProducer,
 };
 use std::marker::PhantomData;
 use futures::sync::mpsc;
@@ -196,12 +196,12 @@ impl<A, B> Producer<B> for MapConduit<A, B> {
 }
 
 
-impl<A, B> Conduit<A, B> for MapConduit<A, B> {
-    type ConcreteConsumer = MapConsumer<A>;
-    type ConcreteProducer = MapProducer<B>;
-
-    fn split(self) -> (MapConsumer<A>, MapProducer<B>) {
-        (self.consumer, self.producer)
+impl<A, B> Conduit<A, B> for MapConduit<A, B> 
+    where A: Send + 'static,
+          B: Send + 'static,
+{
+    fn split(self) -> (ConduitConsumer<A>, ConduitProducer<B>) {
+        (Box::new(self.consumer), Box::new(self.producer))
     }
 }
 

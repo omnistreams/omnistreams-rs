@@ -124,7 +124,7 @@ impl<S, E> Future for InnerTask<S, E>
 }
 
 impl SinkAdapter {
-    pub fn new<S, E>(sink: S) -> Self
+    pub fn new<S, E>(sink: S) -> Box<Self>
         where S: Sink<SinkItem=Message, SinkError=E> + Send + 'static,
               E: 'static + Debug,
     {
@@ -134,10 +134,10 @@ impl SinkAdapter {
         let inner_task = InnerTask::new(sink, message_rx, event_tx);
         tokio::spawn(inner_task.map_err(|_| {}));
 
-        Self {
+        Box::new(Self {
             message_tx,
             event_rx: Some(event_rx),
-        }
+        })
     }
 }
 
