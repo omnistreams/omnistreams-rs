@@ -8,6 +8,7 @@ mod range_producer;
 mod transport;
 mod multiplexer;
 mod producer;
+mod consumer;
 
 pub mod runtime {
     use futures::future::lazy;
@@ -31,28 +32,21 @@ pub use self::producer::{
     ProducerMessage, ProducerMessageRx, ProducerMessageTx,
 };
 
+pub use self::consumer::{
+    Consumer, ConsumerEvent, ConsumerEventRx, ConsumerEventTx,
+    ConsumerMessage, ConsumerMessageRx, ConsumerMessageTx,
+};
+
 pub type Message = Vec<u8>;
 
-type ConsumerMessageRx<T> = mpsc::UnboundedReceiver<ConsumerMessage<T>>;
-type ConsumerMessageTx<T> = mpsc::UnboundedSender<ConsumerMessage<T>>;
-
-pub type ConsumerEventRx = mpsc::UnboundedReceiver<ConsumerEvent>;
-type ConsumerEventTx = mpsc::UnboundedSender<ConsumerEvent>;
-
-
-// TODO: maybe add a default method for taking the events object
-pub trait EventEmitter<T> {
-    fn events(&mut self) -> Option<mpsc::UnboundedReceiver<T>>;
+#[derive(PartialEq, Clone, Debug)]
+pub enum CancelReason {
+    Disconnected,
+    Other(String),
 }
 
 pub trait Streamer {
     fn cancel(&mut self, reason: CancelReason);
-}
-
-pub trait Consumer<T> {
-    fn write(&self, data: T);
-    fn end(&self);
-    fn event_stream(&mut self) -> Option<ConsumerEventRx>;
 }
 
 pub trait Conduit<A, B> : Consumer<A> + Producer<B> {
@@ -63,24 +57,7 @@ pub trait Conduit<A, B> : Consumer<A> + Producer<B> {
     fn split(self) -> (Self::ConcreteConsumer, Self::ConcreteProducer);
 }
 
-#[derive(Debug)]
-pub enum ConsumerMessage<T> {
-    Write(T),
-    End,
-}
-
-
-
-#[derive(PartialEq, Clone, Debug)]
-pub enum ConsumerEvent {
-    Request(usize),
-    Cancellation(CancelReason),
-}
-
-
-
-#[derive(PartialEq, Clone, Debug)]
-pub enum CancelReason {
-    Disconnected,
-    Other(String),
+// TODO: maybe add a default method for taking the events object
+pub trait EventEmitter<T> {
+    fn events(&mut self) -> Option<mpsc::UnboundedReceiver<T>>;
 }
