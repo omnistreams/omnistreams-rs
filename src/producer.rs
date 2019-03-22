@@ -87,10 +87,9 @@ pub fn pipe_into<T, P, C>(mut producer: P, mut consumer: C)
           P: Producer<T> + Send + 'static,
           C: Consumer<T> + Send + 'static
 {
-    let producer_events = producer.event_stream().unwrap();
     let consumer_events = consumer.event_stream().expect("no event stream");
 
-    tokio::spawn(producer_events.for_each(move |event| {
+    producer.events().for_each(move |event| {
         match event {
             ProducerEvent::Data(data) => {
                 consumer.write(data);
@@ -99,11 +98,7 @@ pub fn pipe_into<T, P, C>(mut producer: P, mut consumer: C)
                 consumer.end();
             },
         }
-        Ok(())
-    })
-    .map_err(|e| {
-        println!("error {:?}", e);
-    }));
+    });
 
     tokio::spawn(consumer_events.for_each(move |event| {
         match event {
