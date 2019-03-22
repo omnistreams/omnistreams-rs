@@ -1,5 +1,4 @@
 use omnistreams::{Producer, RangeProducerBuilder, MapConduit, ProducerEvent};
-use tokio::prelude::*;
 
 
 fn main() {
@@ -15,11 +14,9 @@ fn main() {
         let mut square_producer = producer
             .pipe_through(conduit);
 
-        let events = square_producer.event_stream().unwrap();
-
         square_producer.request(1);
 
-        tokio::spawn(events.for_each(move |event| {
+        square_producer.events().for_each(move |event| {
             match event {
                 ProducerEvent::Data(value) => {
                     println!("{}", value);
@@ -28,8 +25,6 @@ fn main() {
                 _ => {
                 }
             }
-            Ok(())
-        })
-        .map_err(|_| {}));
+        });
     });
 }

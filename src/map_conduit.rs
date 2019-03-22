@@ -184,7 +184,9 @@ impl<A, B> Streamer for MapConduit<A, B> {
     }
 }
 
-impl<A, B> Producer<B> for MapConduit<A, B> {
+impl<A, B> Producer<B> for MapConduit<A, B>
+    where B: Send + 'static
+{
     fn request(&mut self, num_items: usize) {
         self.producer.request(num_items);
     }
@@ -195,7 +197,9 @@ impl<A, B> Producer<B> for MapConduit<A, B> {
 }
 
 
-impl<A, B> Conduit<A, B> for MapConduit<A, B> {
+impl<A, B> Conduit<A, B> for MapConduit<A, B>
+    where B: Send + 'static
+{
     type ConcreteConsumer = MapConsumer<A>;
     type ConcreteProducer = MapProducer<B>;
 
@@ -232,7 +236,9 @@ impl<B> Streamer for MapProducer<B> {
     }
 }
 
-impl<B> Producer<B> for MapProducer<B> {
+impl<B> Producer<B> for MapProducer<B>
+    where B: Send + 'static
+{
     fn request(&mut self, num_items: usize) {
         match (&self.message_tx).unbounded_send(ProducerMessage::Request(num_items)) {
             Ok(_) => {

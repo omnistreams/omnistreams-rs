@@ -1,6 +1,6 @@
 use futures::sync::mpsc;
 
-mod read_adapter;
+//mod read_adapter;
 mod write_adapter;
 mod sink_adapter;
 mod map_conduit;
@@ -20,7 +20,7 @@ pub mod runtime {
     }
 }
 
-pub use self::read_adapter::ReadAdapter;
+//pub use self::read_adapter::ReadAdapter;
 pub use self::write_adapter::WriteAdapter;
 pub use self::sink_adapter::SinkAdapter;
 pub use self::range_producer::{RangeProducer, RangeProducerBuilder};
@@ -30,6 +30,7 @@ pub use self::multiplexer::{Multiplexer, MultiplexerEvent};
 pub use self::producer::{
     Producer, ProducerEvent, ProducerEventRx, ProducerEventTx,
     ProducerMessage, ProducerMessageRx, ProducerMessageTx,
+    ProducerEventEmitter,
 };
 
 pub use self::consumer::{
@@ -49,7 +50,9 @@ pub trait Streamer {
     fn cancel(&mut self, reason: CancelReason);
 }
 
-pub trait Conduit<A, B> : Consumer<A> + Producer<B> {
+pub trait Conduit<A, B> : Consumer<A> + Producer<B>
+    where B: Send + 'static
+{
     
     type ConcreteConsumer: Consumer<A>;
     type ConcreteProducer: Producer<B>;
