@@ -14,14 +14,17 @@ fn main() {
         let conduit = MapConduit::new(|x| x*x);
 
         let mut square_producer = producer
-            .pipe_conduit(conduit);
+            .pipe_through(conduit);
 
         let events = square_producer.event_stream().unwrap();
 
-        tokio::spawn(events.for_each(|event| {
+        square_producer.request(1);
+
+        tokio::spawn(events.for_each(move |event| {
             match event {
                 ProducerEvent::Data(value) => {
                     println!("{}", value);
+                    square_producer.request(1);
                 },
                 _ => {
                 }
@@ -29,8 +32,6 @@ fn main() {
             Ok(())
         })
         .map_err(|_| {}));
-
-        square_producer.request(10);
             
         Ok(())
     }));
