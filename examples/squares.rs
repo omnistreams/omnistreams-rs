@@ -1,11 +1,10 @@
 use omnistreams::{Producer, RangeProducerBuilder, MapConduit, ProducerEvent};
-use futures::future::lazy;
 use tokio::prelude::*;
 
 
 fn main() {
 
-    tokio::run(lazy(|| {
+    omnistreams::runtime::run(|| {
 
         let producer = RangeProducerBuilder::new()
             .start(5)
@@ -32,7 +31,5 @@ fn main() {
             Ok(())
         })
         .map_err(|_| {}));
-            
-        Ok(())
-    }));
+    });
 }

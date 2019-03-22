@@ -9,6 +9,16 @@ mod range_producer;
 mod transport;
 mod multiplexer;
 
+pub mod runtime {
+    use futures::future::lazy;
+    pub fn run(f: fn()) {
+        tokio::run(lazy(move || {
+            f();
+            Ok(())
+        }));
+    }
+}
+
 pub use self::read_adapter::ReadAdapter;
 pub use self::write_adapter::WriteAdapter;
 pub use self::sink_adapter::SinkAdapter;
