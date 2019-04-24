@@ -1,7 +1,7 @@
 use super::{
     EventEmitter, Transport, Producer, ProducerEventRx, ProducerMessage, ProducerMessageTx,
     ProducerEvent, ProducerEventTx, ProducerMessageRx,
-    Streamer, CancelReason,
+    Streamer, CancelReason, TransportEventRx, TransportEvent
 };
 use tokio::io;
 use tokio::prelude::*;
@@ -47,7 +47,7 @@ struct InnerTask<T>
 {
     transport: T,
     transport_done: bool,
-    transport_message_rx: MessageRx,
+    transport_events: TransportEventRx,
     event_tx: MultiplexerEventTx,
     receiver_managers: HashMap<Id, ReceiverManager>,
     available_stream_ids: VecDeque<u8>,
@@ -93,7 +93,7 @@ impl Producer<Message> for ReceiverProducer {
 impl Multiplexer {
     pub fn new<T: Transport + Send + 'static>(mut transport: T) -> Multiplexer {
 
-        let transport_message_rx = transport.messages().expect("Multiplexer new messages");
+        let transport_events = transport.event_stream().expect("Multiplexer take transport events");
         let (message_tx, message_rx) = mpsc::unbounded::<MultiplexerMessage>();
         let (event_tx, event_rx) = mpsc::unbounded();
 
@@ -105,7 +105,7 @@ impl Multiplexer {
         let inner = InnerTask {
             transport,
             transport_done: false,
-            transport_message_rx,
+            transport_events,
             event_tx,
             receiver_managers: HashMap::new(),
             available_stream_ids,
@@ -167,17 +167,19 @@ impl<T> InnerTask<T>
         }
 
         loop {
-            match self.transport_message_rx.poll().unwrap() {
-                Async::Ready(message) => {
-                    match message {
-                        Some(m) => {
-                            self.handle_message(&m);
-                        },
-                        None => {
-                            self.transport_done = true;
-                            break;
-                        }
-                    }
+            match self.transport_events.poll().unwrap() {
+                Async::Ready(Some(TransportEvent::Message(m))) => {
+                    self.handle_message(&m);
+                },
+                Async::Ready(Some(TransportEvent::Close)) => {
+                    println!("close dis biz");
+                    self.transport_done = true;
+                    break;
+                },
+                Async::Ready(None) => {
+                    println!("close dis biz 2");
+                    self.transport_done = true;
+                    break;
                 },
                 Async::NotReady => {
                     break;
