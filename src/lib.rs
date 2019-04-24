@@ -25,7 +25,8 @@ pub use self::write_adapter::WriteAdapter;
 pub use self::sink_adapter::SinkAdapter;
 pub use self::range_producer::{RangeProducer, RangeProducerBuilder};
 pub use self::map_conduit::{MapConduit, MapConsumer, MapProducer};
-pub use self::transport::{Transport, Acceptor, WebSocketTransport, WebSocketAcceptorBuilder};
+//pub use self::transport::{Transport, Acceptor, WebSocketTransport, WebSocketAcceptorBuilder};
+pub use self::transport::{Transport};
 pub use self::multiplexer::{Multiplexer, MultiplexerEvent};
 pub use self::producer::{
     Producer, ProducerEvent, ProducerEventRx, ProducerEventTx,
