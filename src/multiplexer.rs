@@ -27,6 +27,7 @@ enum MultiplexerMessage {
 pub enum MultiplexerEvent<P: Producer<Message>> {
     Conduit(P, Message),
     ControlMessage(Message),
+    Close,
 }
 
 type Message = Vec<u8>;
@@ -175,6 +176,7 @@ impl<T> InnerTask<T>
                         },
                         None => {
                             self.transport_done = true;
+                            self.event_tx.unbounded_send(MultiplexerEvent::Close).unwrap();
                             break;
                         }
                     }
