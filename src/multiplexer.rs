@@ -89,6 +89,10 @@ impl Producer<Message> for ReceiverProducer {
     fn event_stream(&mut self) -> Option<ProducerEventRx<Message>> {
         Option::take(&mut self.event_rx)
     }
+
+    fn set_event_stream(&mut self, event_stream: ProducerEventRx<Message>) {
+        self.event_rx = Some(event_stream);
+    }
 }
 
 impl Multiplexer {

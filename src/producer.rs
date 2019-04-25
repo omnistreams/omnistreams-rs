@@ -27,6 +27,7 @@ pub trait Producer<T> : Streamer
 {
     fn request(&mut self, num_items: usize);
     fn event_stream(&mut self) -> Option<ProducerEventRx<T>>;
+    fn set_event_stream(&mut self, event_stream: ProducerEventRx<T>);
     //fn events(&mut self) -> ProducerEventEmitter<T>;
     fn pipe_into<C>(self, consumer: C)
         where Self: Sized + Send + 'static,

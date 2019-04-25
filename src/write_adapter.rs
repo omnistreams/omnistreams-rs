@@ -150,4 +150,8 @@ impl Consumer<Vec<u8>> for WriteAdapter {
     fn event_stream(&mut self) -> Option<ConsumerEventRx> {
         Option::take(&mut self.event_rx)
     }
+
+    fn set_event_stream(&mut self, event_stream: ConsumerEventRx) {
+        self.event_rx = Some(event_stream);
+    }
 }

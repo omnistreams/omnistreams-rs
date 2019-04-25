@@ -1,4 +1,5 @@
 use futures::sync::mpsc;
+use futures::{Stream};
 use super::CancelReason;
 
 
@@ -24,6 +25,7 @@ pub trait Consumer<T> {
     fn write(&self, data: T);
     fn end(&self);
     fn event_stream(&mut self) -> Option<ConsumerEventRx>;
+    fn set_event_stream(&mut self, event_stream: ConsumerEventRx);
 }
 
 

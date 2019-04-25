@@ -176,6 +176,10 @@ impl<A, B> Consumer<A> for MapConduit<A, B> {
     fn event_stream(&mut self) -> Option<ConsumerEventRx> {
         self.consumer.event_stream()
     }
+
+    fn set_event_stream(&mut self, event_stream: ConsumerEventRx) {
+        self.consumer.set_event_stream(event_stream);
+    }
 }
 
 impl<A, B> Streamer for MapConduit<A, B> {
@@ -193,6 +197,10 @@ impl<A, B> Producer<B> for MapConduit<A, B>
 
     fn event_stream(&mut self) -> Option<ProducerEventRx<B>> {
         self.producer.event_stream()
+    }
+
+    fn set_event_stream(&mut self, event_stream: ProducerEventRx<B>) {
+        self.producer.set_event_stream(event_stream);
     }
 }
 
@@ -220,6 +228,10 @@ impl<A> Consumer<A> for MapConsumer<A> {
 
     fn event_stream(&mut self) -> Option<ConsumerEventRx> {
         Option::take(&mut self.event_rx)
+    }
+
+    fn set_event_stream(&mut self, event_stream: ConsumerEventRx) {
+        self.event_rx = Some(event_stream);
     }
 }
 
@@ -252,6 +264,10 @@ impl<B> Producer<B> for MapProducer<B>
 
     fn event_stream(&mut self) -> Option<ProducerEventRx<B>> {
         Option::take(&mut self.event_rx)
+    }
+
+    fn set_event_stream(&mut self, event_stream: ProducerEventRx<B>) {
+        self.event_rx = Some(event_stream);
     }
 }
 
