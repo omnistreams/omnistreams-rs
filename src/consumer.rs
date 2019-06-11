@@ -1,5 +1,4 @@
 use futures::sync::mpsc;
-use futures::{Stream};
 use super::CancelReason;
 
 
